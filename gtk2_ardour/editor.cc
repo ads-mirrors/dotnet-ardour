@@ -344,6 +344,7 @@ Editor::Editor ()
 	, horizontal_adjustment (0.0, 0.0, 1e16)
 	, unused_adjustment (0.0, 0.0, 10.0, 400.0)
 	, controls_layout (unused_adjustment, vertical_adjustment)
+	, group_tab_layout (unused_adjustment, vertical_adjustment)
 	, _scroll_callbacks (0)
 	, _visible_canvas_width (0)
 	, _visible_canvas_height (0)
@@ -591,11 +592,9 @@ Editor::Editor ()
 	vertical_adjustment.signal_value_changed().connect (sigc::mem_fun(*this, &Editor::tie_vertical_scrolling), true);
 	_track_canvas->signal_map_event().connect (sigc::mem_fun (*this, &Editor::track_canvas_map_handler));
 
-	HBox* h = manage (new HBox);
 	_group_tabs = new EditorGroupTabs (this);
-	h->pack_start (*_group_tabs, PACK_SHRINK);
-	h->pack_start (edit_controls_vbox);
-	controls_layout.add (*h);
+	group_tab_layout.add (*_group_tabs);
+	controls_layout.add (edit_controls_vbox);
 
 	HSeparator* separator = manage (new HSeparator());
 	separator->set_name("TrackSeparator");
@@ -608,6 +607,12 @@ Editor::Editor ()
 	controls_layout.signal_button_press_event().connect (sigc::mem_fun(*this, &Editor::edit_controls_button_event));
 	controls_layout.signal_button_release_event().connect (sigc::mem_fun(*this, &Editor::edit_controls_button_event));
 	controls_layout.signal_scroll_event().connect (sigc::mem_fun(*this, &Editor::control_layout_scroll), false);
+
+	group_tab_layout.set_name ("EditControlsBase");
+	group_tab_layout.add_events (Gdk::BUTTON_PRESS_MASK|Gdk::BUTTON_RELEASE_MASK|Gdk::ENTER_NOTIFY_MASK|Gdk::LEAVE_NOTIFY_MASK|Gdk::SCROLL_MASK);
+	group_tab_layout.signal_button_press_event().connect (sigc::mem_fun(*this, &Editor::edit_controls_button_event));
+	group_tab_layout.signal_button_release_event().connect (sigc::mem_fun(*this, &Editor::edit_controls_button_event));
+	group_tab_layout.signal_scroll_event().connect (sigc::mem_fun(*this, &Editor::control_layout_scroll), false);
 
 	_cursors = new MouseCursors;
 	_cursors->set_cursor_set (UIConfiguration::instance().get_icon_set());
@@ -645,11 +650,12 @@ Editor::Editor ()
 #endif
 
 	/* labels for the time bars */
-	edit_packer.attach (time_bars_event_box,     1, 2, 0, 1,    FILL,        SHRINK, 0, 0);
+	edit_packer.attach (time_bars_event_box,     1, 3, 0, 1,    FILL,        SHRINK, 0, 0);
 	/* track controls */
-	edit_packer.attach (controls_layout,         1, 2, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
+	edit_packer.attach (group_tab_layout,        1, 2, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
+	edit_packer.attach (controls_layout,         2, 3, 1, 2,    FILL,        FILL|EXPAND, 0, 0);
 	/* canvas */
-	edit_packer.attach (*_track_canvas_viewport,  2, 3, 0, 2,    FILL|EXPAND, FILL|EXPAND, 0, 0);
+	edit_packer.attach (*_track_canvas_viewport,  3, 4, 0, 2,    FILL|EXPAND, FILL|EXPAND, 0, 0);
 
 	bottom_hbox.set_border_width (2);
 	bottom_hbox.set_spacing (3);

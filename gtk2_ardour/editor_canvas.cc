@@ -349,7 +349,11 @@ Editor::reset_controls_layout_width ()
 
 	if (_group_tabs->get_visible()) {
 		req = _group_tabs->size_request ();
-		w += req.width;
+		group_tab_layout.property_width() = req.width;
+		group_tab_layout.property_width_request() = req.width;
+	} else {
+		group_tab_layout.property_width() = 0;
+		group_tab_layout.property_width_request() = 0;
 	}
 
 	/* the controls layout has no horizontal scrolling, its visible
@@ -381,6 +385,11 @@ Editor::reset_controls_layout_height (int32_t h)
 
 	controls_layout.property_height() = h;
 
+	if (_group_tabs->get_visible()) {
+		/// XXX limit to last track
+		group_tab_layout.property_height() = h;
+		_group_tabs->property_height_request() = h;
+	}
 }
 
 bool

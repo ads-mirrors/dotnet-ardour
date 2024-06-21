@@ -1169,6 +1169,7 @@ private:
 
 	Gtk::Adjustment     unused_adjustment; // yes, really; Gtk::Layout constructor requires refs
 	Gtk::Layout         controls_layout;
+	Gtk::Layout         group_tab_layout;
 	bool control_layout_scroll (GdkEventScroll* ev);
 	void reset_controls_layout_width ();
 	void reset_controls_layout_height (int32_t height);
