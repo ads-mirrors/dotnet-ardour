@@ -81,6 +81,7 @@ namespace ARDOUR {
 		PBD::PropertyDescriptor<bool> default_fade_out;
 		PBD::PropertyDescriptor<bool> fade_in_active;
 		PBD::PropertyDescriptor<bool> fade_out_active;
+		PBD::PropertyDescriptor<bool> fade_before_fx;
 		PBD::PropertyDescriptor<float> scale_amplitude;
 		PBD::PropertyDescriptor<std::shared_ptr<AutomationList> > fade_in;
 		PBD::PropertyDescriptor<std::shared_ptr<AutomationList> > inverse_fade_in;
@@ -175,6 +176,8 @@ AudioRegion::make_property_quarks ()
 	DEBUG_TRACE (DEBUG::Properties, string_compose ("quark for fade-in-active = %1\n", Properties::fade_in_active.property_id));
 	Properties::fade_out_active.property_id = g_quark_from_static_string (X_("fade-out-active"));
 	DEBUG_TRACE (DEBUG::Properties, string_compose ("quark for fade-out-active = %1\n", Properties::fade_out_active.property_id));
+	Properties::fade_before_fx.property_id = g_quark_from_static_string (X_("fade-before-fx"));
+	DEBUG_TRACE (DEBUG::Properties, string_compose ("quark for fade-before-fx = %1\n", Properties::fade_before_fx.property_id));
 	Properties::scale_amplitude.property_id = g_quark_from_static_string (X_("scale-amplitude"));
 	DEBUG_TRACE (DEBUG::Properties, string_compose ("quark for scale-amplitude = %1\n", Properties::scale_amplitude.property_id));
 	Properties::fade_in.property_id = g_quark_from_static_string (X_("FadeIn"));
@@ -199,6 +202,7 @@ AudioRegion::register_properties ()
 	add_property (_default_fade_out);
 	add_property (_fade_in_active);
 	add_property (_fade_out_active);
+	add_property (_fade_before_fx);
 	add_property (_scale_amplitude);
 	add_property (_fade_in);
 	add_property (_inverse_fade_in);
@@ -213,6 +217,7 @@ AudioRegion::register_properties ()
 	, _default_fade_out (Properties::default_fade_out, true) \
 	, _fade_in_active (Properties::fade_in_active, true) \
 	, _fade_out_active (Properties::fade_out_active, true) \
+	, _fade_before_fx (Properties::fade_before_fx, false) \
 	, _scale_amplitude (Properties::scale_amplitude, 1.0) \
 	, _fade_in (Properties::fade_in, std::shared_ptr<AutomationList> (new AutomationList (Evoral::Parameter (FadeInAutomation), tdp))) \
 	, _inverse_fade_in (Properties::inverse_fade_in, std::shared_ptr<AutomationList> (new AutomationList (Evoral::Parameter (FadeInAutomation), tdp))) \
@@ -225,6 +230,7 @@ AudioRegion::register_properties ()
 	, _default_fade_out (Properties::default_fade_out, other->_default_fade_out) \
 	, _fade_in_active (Properties::fade_in_active, other->_fade_in_active) \
 	, _fade_out_active (Properties::fade_out_active, other->_fade_out_active) \
+	, _fade_before_fx (Properties::fade_before_fx, other->_fade_before_fx) \
 	, _scale_amplitude (Properties::scale_amplitude, other->_scale_amplitude) \
 	, _fade_in (Properties::fade_in, std::shared_ptr<AutomationList> (new AutomationList (*other->_fade_in.val()))) \
 	, _inverse_fade_in (Properties::fade_in, std::shared_ptr<AutomationList> (new AutomationList (*other->_inverse_fade_in.val()))) \
@@ -498,6 +504,22 @@ AudioRegion::set_envelope_active (bool yn)
 	}
 }
 
+void
+AudioRegion::set_fade_before_fx (bool yn)
+{
+	if (fade_before_fx() != yn) {
+		_fade_before_fx = yn;
+		send_change (PropertyChange (Properties::fade_before_fx));
+		if (!has_region_fx ()) {
+			return;
+		}
+		if (!_invalidated.exchange (true)) {
+			send_change (PropertyChange (Properties::region_fx)); // trigger DiskReader overwrite
+		}
+		RegionFxChanged (); /* EMIT SIGNAL */
+	}
+}
+
 /** @param buf Buffer to put peak data in.
  *  @param npeaks Number of peaks to read (ie the number of PeakDatas in buf)
  *  @param offset Start position, as an offset from the start of this region's source.
@@ -759,6 +781,23 @@ AudioRegion::read_at (Sample*     buf,
 				apply_gain_to_buffer (mixdown_buffer, n_read, _scale_amplitude);
 			}
 
+			if (_fade_before_fx && fade_in_limit != 0) {
+				assert (fade_in_limit < n_read);
+				_fade_in->curve().get_vector (timepos_t (internal_offset), timepos_t (internal_offset + fade_in_limit), gain_buffer, fade_in_limit); // XXX
+				for (samplecnt_t n = 0; n < fade_in_limit; ++n) {
+					mixdown_buffer[n] *= gain_buffer[n];
+				}
+			}
+
+			if (_fade_before_fx && fade_out_limit != 0) {
+				assert (fade_out_offset + fade_out_limit <= n_read);
+				samplecnt_t const curve_offset = fade_interval_start - _fade_out->when(false).distance (len_as_tpos ()).samples();
+				_fade_out->curve().get_vector (timepos_t (curve_offset), timepos_t (curve_offset + fade_out_limit), gain_buffer, fade_out_limit);
+				for (samplecnt_t n = 0, m = fade_out_offset; n < fade_out_limit; ++n, ++m) {
+					mixdown_buffer[m] *= gain_buffer[n];
+				}
+			}
+
 			/* for mono regions no cache is required, unless there are
 			 * regionFX, which use the _readcache BufferSet.
 			 */
@@ -828,9 +867,13 @@ AudioRegion::read_at (Sample*     buf,
 			_fade_in->curve().get_vector (timepos_t (internal_offset), timepos_t (internal_offset + fade_in_limit), gain_buffer, fade_in_limit);
 		}
 
-		/* Mix our newly-read data in, with the fade */
-		for (samplecnt_t n = 0; n < fade_in_limit; ++n) {
-			buf[n] += mixdown_buffer[n] * gain_buffer[n];
+		if (!_fade_before_fx) {
+			/* Mix our newly-read data in, with the fade */
+			for (samplecnt_t n = 0; n < fade_in_limit; ++n) {
+				buf[n] += mixdown_buffer[n] * gain_buffer[n];
+			}
+		} else {
+			fade_in_limit = 0;
 		}
 	}
 
@@ -869,11 +912,13 @@ AudioRegion::read_at (Sample*     buf,
 			_fade_out->curve().get_vector (timepos_t (curve_offset), timepos_t (curve_offset + fade_out_limit), gain_buffer, fade_out_limit);
 		}
 
-		/* Mix our newly-read data with whatever was already there,
-		   with the fade out applied to our data.
-		*/
-		for (samplecnt_t n = 0, m = fade_out_offset; n < fade_out_limit; ++n, ++m) {
-			buf[m] += mixdown_buffer[m] * gain_buffer[n];
+		if (!_fade_before_fx) {
+			/* Mix our newly-read data with whatever was already there, with the fade out applied to our data.  */
+			for (samplecnt_t n = 0, m = fade_out_offset; n < fade_out_limit; ++n, ++m) {
+				buf[m] += mixdown_buffer[m] * gain_buffer[n];
+			}
+		} else {
+			fade_out_limit = 0;
 		}
 	}
 
