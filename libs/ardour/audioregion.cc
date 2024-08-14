@@ -520,6 +520,16 @@ AudioRegion::set_fade_before_fx (bool yn)
 	}
 }
 
+timecnt_t
+AudioRegion::tail () const
+{
+	if (_fade_before_fx && has_region_fx ()) {
+		return timecnt_t (_session.sample_rate ()); // TODO use plugin API
+	} else {
+		return timecnt_t (0);
+	}
+}
+
 /** @param buf Buffer to put peak data in.
  *  @param npeaks Number of peaks to read (ie the number of PeakDatas in buf)
  *  @param offset Start position, as an offset from the start of this region's source.
@@ -611,20 +621,23 @@ AudioRegion::read_at (Sample*     buf,
 	samplecnt_t to_read;
 	const samplepos_t psamples = position().samples();
 	const samplecnt_t lsamples = _length.val().samples();
+	const samplecnt_t tsamples = tail ().samples ();
 
 	assert (pos >= psamples);
 	sampleoffset_t const internal_offset = pos - psamples;
 
-	if (internal_offset >= lsamples) {
+	if (internal_offset >= lsamples + tsamples) {
 		return 0; /* read nothing */
 	}
 
 	const samplecnt_t esamples = lsamples - internal_offset;
 	assert (esamples >= 0);
 
-	if ((to_read = min (cnt, esamples)) == 0) {
+	if (min (cnt, esamples + tsamples) <= 0) {
 		return 0; /* read nothing */
 	}
+
+	to_read = max<samplecnt_t> (0, min (cnt, esamples));
 
 	std::shared_ptr<Playlist> pl (playlist());
 	if (!pl){
@@ -700,11 +713,13 @@ AudioRegion::read_at (Sample*     buf,
 	boost::scoped_array<gain_t> gain_array;
 	boost::scoped_array<Sample> mixdown_array;
 
+	samplepos_t n_tail = 0; // XXX
+
 	// TODO optimize mono reader, w/o plugins -> old code
 	if (n_chn > 1 && _cache_start < _cache_end && internal_offset >= _cache_start && internal_offset + to_read <= _cache_end) {
 		DEBUG_TRACE (DEBUG::AudioPlayback, string_compose ("Region '%1' channel: %2 copy from cache %3 - %4 to_read: %5\n",
 		             name(), chan_n, internal_offset, internal_offset + to_read, to_read));
-		copy_vector (mixdown_buffer, _readcache.get_audio (chan_n).data (internal_offset - _cache_start), to_read);
+		copy_vector (mixdown_buffer, _readcache.get_audio (chan_n).data (internal_offset - _cache_start), to_read); // XXX add tail
 		cl.release ();
 	} else {
 		Glib::Threads::RWLock::ReaderLock lm (_fx_lock);
@@ -720,16 +735,20 @@ AudioRegion::read_at (Sample*     buf,
 		samplepos_t    readat = pos;
 		sampleoffset_t offset = internal_offset;
 
+		if (tsamples > 0 && offset + n_read >= esamples) {
+			// old end =    offset + n_read
+			// new end =    offset + n_read + tsamples
+			printf ("ADD TAIL cnt = %ld nr: %ld tail: %ld proc add %ld\n",  cnt, n_read, tsamples, min (cnt - n_read, tsamples));
+			n_tail = max<samplecnt_t> (0, min (cnt - n_read, tsamples));
+			n_proc += n_tail;
+		}
+
 		//printf ("READ Cache end %ld pos %ld\n", _cache_end, readat);
 		if (_cache_end != readat && fx_latency > 0) {
+			printf ("AR Latent read .. %d\n", fx_latency);
 			_fx_latent_read = true;
 			n_proc += fx_latency;
 			n_read = min (to_read + fx_latency, esamples);
-
-			mixdown_array.reset (new Sample[n_proc]);
-			mixdown_buffer = mixdown_array.get ();
-			gain_array.reset (new gain_t[n_proc]);
-			gain_buffer = gain_array.get ();
 		}
 
 		if (!_fx_latent_read && fx_latency > 0) {
@@ -738,13 +757,20 @@ AudioRegion::read_at (Sample*     buf,
 			n_read = max<samplecnt_t> (0, min (to_read, lsamples - offset));
 		}
 
+		if (n_proc > to_read) {
+			mixdown_array.reset (new Sample[n_proc]);
+			mixdown_buffer = mixdown_array.get ();
+			gain_array.reset (new gain_t[n_proc]);
+			gain_buffer = gain_array.get ();
+		}
+
 		DEBUG_TRACE (DEBUG::AudioPlayback, string_compose ("Region '%1' channel: %2 read: %3 - %4 (%5) to_read: %6 offset: %7 with fx: %8 fx_latency: %9\n",
 		             name(), chan_n, readat, readat + n_read, n_read, to_read, internal_offset, have_fx, fx_latency));
 
 		_readcache.ensure_buffers (cc, n_proc);
 
 		if (n_read < n_proc) {
-			//printf ("SILENCE PAD rd: %ld proc: %ld\n", n_read, n_proc);
+			printf ("SILENCE PAD rd: %ld proc: %ld\n", n_read, n_proc);
 			/* silence pad, process tail of latent effects */
 			memset (&mixdown_buffer[n_read], 0, sizeof (Sample)* (n_proc - n_read));
 			_readcache.silence (n_proc - n_read, n_read);
@@ -814,7 +840,7 @@ AudioRegion::read_at (Sample*     buf,
 		/* for mono regions without plugins, mixdown_buffer is valid as-is */
 		if (n_chn > 1 || have_fx) {
 			/* copy data for current channel */
-			copy_vector (mixdown_buffer, _readcache.get_audio (chan_n).data (), to_read);
+			copy_vector (mixdown_buffer, _readcache.get_audio (chan_n).data (), to_read + n_tail);
 		}
 
 		_cache_start = internal_offset;
@@ -924,7 +950,7 @@ AudioRegion::read_at (Sample*     buf,
 
 	/* MIX OR COPY THE REGION BODY FROM mixdown_buffer INTO buf */
 
-	samplecnt_t const N = to_read - fade_in_limit - fade_out_limit;
+	samplecnt_t const N = to_read + n_tail - fade_in_limit - fade_out_limit;
 
 	if (N > 0) {
 		if (is_opaque) {
@@ -936,7 +962,7 @@ AudioRegion::read_at (Sample*     buf,
 		}
 	}
 
-	return to_read;
+	return to_read + n_tail;
 }
 
 /** Read data directly from one of our sources, accounting for the situation when the track has a different channel
@@ -2487,6 +2513,7 @@ AudioRegion::apply_region_fx (BufferSet& bufs, samplepos_t start_sample, samplep
 	if (_plugins.empty ()) {
 		return;
 	}
+	printf ("AudioRegion::apply_region_fx %ld -> %ld (np %ld)\n", start_sample, end_sample, n_samples);
 
 	pframes_t block_size = _session.get_block_size ();
 	if (_fx_block_size != block_size) {

@@ -171,6 +171,8 @@ class LIBARDOUR_API AudioRegion : public Region, public AudioReadable
 	bool remove_plugin (std::shared_ptr<RegionFxPlugin>);
 	void reorder_plugins (RegionFxList const&);
 
+	timecnt_t tail () const;
+
 	/* automation */
 
 	std::shared_ptr<Evoral::Control>
