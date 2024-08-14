@@ -509,11 +509,14 @@ AudioRegion::set_fade_before_fx (bool yn)
 {
 	if (fade_before_fx() != yn) {
 		_fade_before_fx = yn;
+		send_change (PropertyChange (Properties::fade_before_fx));
+		if (!has_region_fx ()) {
+			return;
+		}
 		if (!_invalidated.exchange (true)) {
 			send_change (PropertyChange (Properties::region_fx)); // trigger DiskReader overwrite
 		}
 		RegionFxChanged (); /* EMIT SIGNAL */
-		send_change (PropertyChange (Properties::fade_before_fx));
 	}
 }
 
