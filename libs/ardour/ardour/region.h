@@ -145,6 +145,8 @@ public:
 	timepos_t end()        const;
 	timepos_t nt_last()    const { return end().decrement(); }
 
+	virtual timecnt_t tail () const { return timecnt_t (0); }
+
 	timepos_t source_position () const;
 	timecnt_t source_relative_position (Temporal::timepos_t const &) const;
 	timecnt_t region_relative_position (Temporal::timepos_t const &) const;
@@ -564,6 +566,7 @@ protected:
 protected:
 	virtual bool _add_plugin (std::shared_ptr<RegionFxPlugin>, std::shared_ptr<RegionFxPlugin>, bool) { return false; }
 	virtual void fx_latency_changed (bool no_emit);
+	virtual void fx_tail_changed (bool no_emit);
 
 	virtual void send_change (const PBD::PropertyChange&);
 	virtual int _set_state (const XMLNode&, int version, PBD::PropertyChange& what_changed, bool send_signal);
@@ -584,6 +587,7 @@ protected:
 
 	mutable Glib::Threads::RWLock _fx_lock;
 	uint32_t                      _fx_latency;
+	uint32_t                      _fx_tail;
 	RegionFxList                  _plugins;
 
 	PBD::Property<bool>      _sync_marked;

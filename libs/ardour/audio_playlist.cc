@@ -204,7 +204,7 @@ AudioPlaylist::read (Sample *buf, Sample *mixdown_buffer, float *gain_buffer, ti
 	/* Find all the regions that are involved in the bit we are reading,
 	   and sort them by descending layer and ascending position.
 	*/
-	std::shared_ptr<RegionList> all = regions_touched_locked (start, start + cnt);
+	std::shared_ptr<RegionList> all = regions_touched_locked (start, start + cnt, true);
 	all->sort (ReadSorter ());
 
 	/* This will be a list of the bits of our read range that we have
@@ -236,7 +236,7 @@ AudioPlaylist::read (Sample *buf, Sample *mixdown_buffer, float *gain_buffer, ti
 		*/
 		Temporal::Range rrange = ar->range_samples ();
 		Temporal::Range region_range (max (rrange.start(), start),
-		                              min (rrange.end(), start + cnt));
+		                              min (rrange.end() + ar->tail (), start + cnt));
 
 		/* ... and then remove the bits that are already done */
 
@@ -256,9 +256,9 @@ AudioPlaylist::read (Sample *buf, Sample *mixdown_buffer, float *gain_buffer, ti
 				/* Cut this range down to just the body and mark it done */
 				Temporal::Range body = ar->body_range ();
 
-				if (body.start() < d.end() && body.end() > d.start()) {
+				if (body.start() < d.end().earlier (ar->tail ()) && body.end() > d.start()) {
 					d.set_start (max (d.start(), body.start()));
-					d.set_end (min (d.end(), body.end()));
+					d.set_end (min (d.end().earlier (ar->tail ()), body.end()));
 					done.add (d);
 				}
 			}
