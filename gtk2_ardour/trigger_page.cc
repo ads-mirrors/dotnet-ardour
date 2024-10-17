@@ -66,11 +66,12 @@ using namespace Gtk;
 using namespace std;
 
 TriggerPage::TriggerPage ()
-	: Tabbable (_("Cues"), X_("trigger"), &_content)
+	: Tabbable (_("Cues"), X_("trigger"))
 	, _cue_area_frame (0.5, 0, 1.0, 0)
 	, _cue_box (16, 16 * TriggerBox::default_triggers_per_box)
 	, _master_widget (16, 16)
 	, _master (_master_widget.root ())
+	, _show_bottom_pane (false)
 	, _selection (*this, *this)
 {
 	load_bindings ();
@@ -129,15 +130,10 @@ TriggerPage::TriggerPage ()
 	_sidebar_notebook.popup_disable ();
 	_sidebar_notebook.set_tab_pos (Gtk::POS_RIGHT);
 
-	_sidebar_vbox.pack_start (_sidebar_notebook);
 	add_sidebar_page (_("Clips"), _trigger_clip_picker);
 	add_sidebar_page (_("Tracks"), _trigger_route_list.widget ());
 	add_sidebar_page (_("Sources"), _trigger_source_list.widget ());
 	add_sidebar_page (_("Regions"), _trigger_region_list.widget ());
-
-	/* Upper pane ([slot | strips] | file browser) */
-	_pane_upper.add (_strip_group_box);
-	_pane_upper.add (_sidebar_vbox);
 
 	_midi_editor = new MidiCueEditor;
 
@@ -155,15 +151,25 @@ TriggerPage::TriggerPage ()
 	table->attach (_midi_editor->toolbox(), col, col + 1, 0, 1, Gtk::EXPAND|Gtk::FILL, Gtk::EXPAND|Gtk::FILL);
 	++col;
 
+	table->show_all ();
+
 	_parameter_box.pack_start (*table);
+	_parameter_box.set_no_show_all ();
 
 	/* Top-level Layout */
-	_content.add (_pane_upper);
-	_content.add (_parameter_box);
-	_content.show ();
+	content_transport_ebox.add (*_transport_bar);
+	content_innermost_ebox.add (_pane);
+
+	_pane.add (_strip_group_box);
+	/* we cannot `content_midlevel_vbox.remove(_content_props_ebox)` and add it to the _pane
+	 * because visibility updates are not propagated upward, and the pane will not collapse
+	 * when the _parameter_box is hidden
+	 */
+	_pane.add (_parameter_box);
+
+	content_list_ebox.add (_sidebar_notebook);
 
 	/* Show all */
-	_pane_upper.show ();
 	_strip_group_box.show ();
 	_strip_scroller.show ();
 	_strip_packer.show ();
@@ -173,7 +179,7 @@ TriggerPage::TriggerPage ()
 	_sidebar_notebook.show_all ();
 
 	/* setup keybidings */
-	_content.set_data ("ardour-bindings", bindings);
+	contents().set_data ("ardour-bindings", bindings);
 
 	/* subscribe to signals */
 	Config->ParameterChanged.connect (*this, invalidator (*this), std::bind (&TriggerPage::parameter_changed, this, _1), gui_context ());
@@ -181,14 +187,6 @@ TriggerPage::TriggerPage ()
 
 	/* init */
 	update_title ();
-
-	/* Restore pane state */
-	float          fract;
-	XMLNode const* settings = ARDOUR_UI::instance ()->trigger_page_settings ();
-	if (!settings || !settings->get_property ("triggerpage-hpane-pos", fract) || fract > 1.0) {
-		fract = 0.75f;
-	}
-	_pane_upper.set_divider (0, fract);
 }
 
 TriggerPage::~TriggerPage ()
@@ -219,13 +217,28 @@ TriggerPage::use_own_window (bool and_fill_it)
 	return win;
 }
 
+void
+TriggerPage::showhide_btm_props (bool yn)
+{
+	if (_show_bottom_pane == yn) {
+		return;
+	}
+
+	_show_bottom_pane = yn;
+
+	if (!_show_bottom_pane) {
+		_parameter_box.hide ();
+	} else if (!Editor::instance ().get_selection ().triggers.empty ()) {
+		_parameter_box.show ();
+	}
+}
+
 XMLNode&
 TriggerPage::get_state () const
 {
 	XMLNode* node = new XMLNode (X_("TriggerPage"));
 	node->add_child_nocopy (Tabbable::get_state ());
 
-	node->set_property (X_("triggerpage-hpane-pos"), _pane_upper.get_divider ());
 	node->set_property (X_("triggerpage-sidebar-page"), _sidebar_notebook.get_current_page ());
 
 	node->add_child_nocopy (_midi_editor->get_state());
@@ -439,7 +452,9 @@ TriggerPage::rec_enable_changed (Trigger const * trigger)
 		_midi_editor->viewport().show ();
 	}
 
-	_parameter_box.show ();
+	if (_show_bottom_pane) {
+		_parameter_box.show ();
+	}
 }
 
 void
@@ -479,7 +494,9 @@ TriggerPage::selection_changed ()
 			_midi_editor->viewport().show ();
 		}
 
-		_parameter_box.show ();
+		if (_show_bottom_pane) {
+			_parameter_box.show ();
+		}
 	}
 }
 
@@ -831,7 +848,7 @@ TriggerPage::stop_updating ()
 void
 TriggerPage::fast_update_strips ()
 {
-	if (_content.get_mapped () && _session) {
+	if (contents().get_mapped () && _session) {
 		for (list<TriggerStrip*>::iterator i = _strips.begin (); i != _strips.end (); ++i) {
 			(*i)->fast_update ();
 		}
