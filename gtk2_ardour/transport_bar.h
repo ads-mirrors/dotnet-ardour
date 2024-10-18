@@ -70,6 +70,8 @@ public:
 
 	void set_session (ARDOUR::Session *);
 
+	void focus_on_clock ();
+
 private:
 	Gtk::Table    transport_table;
 
@@ -127,8 +129,6 @@ private:
 
 	void latency_switch_changed ();
 	void session_latency_updated (bool);
-
-	void focus_on_clock ();
 
 	void update_clock_visibility ();
 
