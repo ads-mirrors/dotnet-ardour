@@ -1163,7 +1163,6 @@ LuaProc::parse_scale_points (luabridge::LuaRef* lr)
 		return std::shared_ptr<ScalePoints> ();
 	}
 
-	int cnt = 0;
 	std::shared_ptr<ScalePoints> rv = std::shared_ptr<ScalePoints>(new ScalePoints());
 	luabridge::LuaRef scalepoints ((*lr)["scalepoints"]);
 
@@ -1172,7 +1171,6 @@ LuaProc::parse_scale_points (luabridge::LuaRef* lr)
 		if (!i.value ().isNumber ())  { continue; }
 		rv->insert(make_pair(i.key ().cast<std::string> (),
 					i.value ().cast<float> ()));
-		++cnt;
 	}
 
 	if (rv->size() > 0) {
