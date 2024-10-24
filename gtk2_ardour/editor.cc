@@ -505,7 +505,7 @@ Editor::Editor ()
 	CairoWidget::set_focus_handler (sigc::mem_fun (ARDOUR_UI::instance(), &ARDOUR_UI::reset_focus));
 
 	_transport_bar = manage(new TransportBar());
-	signal_tabbed_changed.connect (sigc::mem_fun (*this, &Editor::tabbed_changed));
+	_transport_bar->show();
 
 	_summary = new EditorSummary (this);
 
@@ -1011,11 +1011,6 @@ Editor::deferred_control_scroll (samplepos_t /*target*/)
 void
 Editor::tabbed_changed (bool tabbed)
 {
-	if (tabbed) {
-		_transport_bar->hide ();
-	} else {
-		_transport_bar->show ();
-	}
 }
 
 void

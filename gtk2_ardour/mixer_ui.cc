@@ -166,7 +166,7 @@ Mixer_UI::Mixer_UI ()
 	contents().set_data ("ardour-bindings", bindings);
 
 	_transport_bar = manage(new TransportBar());
-	signal_tabbed_changed.connect (sigc::mem_fun (*this, &Mixer_UI::tabbed_changed));
+	_transport_bar->show();
 
 	PresentationInfo::Change.connect (*this, invalidator (*this), std::bind (&Mixer_UI::presentation_info_changed, this, _1), gui_context());
 	Route::FanOut.connect (*this, invalidator (*this), std::bind (&Mixer_UI::fan_out, this, _1, false, true), gui_context());
@@ -3163,11 +3163,6 @@ Mixer_UI::save_favorite_ui_state (const TreeModel::iterator& iter, const TreeMod
 void
 Mixer_UI::tabbed_changed (bool tabbed)
 {
-	if (tabbed) {
-		_transport_bar->hide ();
-	} else {
-		_transport_bar->show ();
-	}
 }
 
 void
