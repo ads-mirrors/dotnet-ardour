@@ -105,6 +105,10 @@ RecorderUI::RecorderUI ()
 	_transport_bar = manage(new TransportBar());
 	_transport_bar->show();
 
+	content_list_pane.remove(content_list_vbox);
+	strip_attachment_button.set_sensitive(false);
+	prop_attachment_button.set_sensitive(false);
+	list_attachment_button.set_sensitive(false);
 
 	/* monitoring */
 	_auto_input_button.set_related_action (ActionManager::get_action ("Transport", "ToggleAutoInput"));
