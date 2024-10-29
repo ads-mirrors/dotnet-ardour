@@ -4828,8 +4828,6 @@ Editor::add_stripables (StripableList& sl)
 	if (show_editor_mixer_when_tracks_arrive && !new_selection.empty()) {
 		show_editor_mixer (true);
 	}
-
-	editor_list_button.set_sensitive (true);
 }
 
 void
@@ -5511,9 +5509,6 @@ Editor::session_going_away ()
 
 	nudge_clock->set_session (0);
 
-	editor_list_button.set_active(false);
-	editor_list_button.set_sensitive(false);
-
 	/* clear tempo/meter rulers */
 	remove_metric_marks ();
 	clear_marker_display ();
@@ -5541,16 +5536,6 @@ void
 Editor::trigger_script (int i)
 {
 	LuaInstance::instance()-> call_action (i);
-}
-
-void
-Editor::show_editor_list (bool yn)
-{
-	if (yn) {
-		_editor_list_vbox.show ();
-	} else {
-		_editor_list_vbox.hide ();
-	}
 }
 
 void
@@ -5740,7 +5725,6 @@ Editor::use_own_window (bool and_fill_it)
 	*/
 
 	/* re-hide stuff if necessary */
-	editor_list_button_toggled ();
 	parameter_changed ("show-summary");
 	parameter_changed ("show-group-tabs");
 	parameter_changed ("show-zoom-tools");
