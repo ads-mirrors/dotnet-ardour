@@ -3161,11 +3161,6 @@ Mixer_UI::save_favorite_ui_state (const TreeModel::iterator& iter, const TreeMod
 }
 
 void
-Mixer_UI::tabbed_changed (bool tabbed)
-{
-}
-
-void
 Mixer_UI::set_plugin_list_mode (PluginListMode plm)
 {
 	plugin_list_mode = plm;
