@@ -31,6 +31,7 @@ using namespace PBD;
 
 SessionHandlePtr::SessionHandlePtr (Session* s)
 	: _session (s)
+	, _gone_away_emitted (false)
 {
 	if (_session) {
 		_session->DropReferences.connect_same_thread (_session_connections, std::bind (&SessionHandlePtr::session_going_away, this));
@@ -42,6 +43,19 @@ SessionHandlePtr::set_session (Session* s)
 {
 	_session_connections.drop_connections ();
 
+	/* DropReferences may already have been disconnected due to signal emission ordering.
+	 *
+	 * An instance of this class (e.g. Ardour_UI) will need to call ::set_session on member instances.
+	 *
+	 * Yet, when session_going_away() first calls set_session (0) on an instance that has SessionHandlePtr members,
+	 * they will reach here, and disocnnect signal handlers. Their derived implementation of ::session_going_away()
+	 * will not be called.
+	 */
+	if (!_gone_away_emitted && _session && !s) {
+		_gone_away_emitted = true;
+		session_going_away ();
+	}
+
 	if (_session) {
 		_session = 0;
 	}
@@ -49,13 +63,17 @@ SessionHandlePtr::set_session (Session* s)
 	if (s) {
 		_session = s;
 		_session->DropReferences.connect_same_thread (_session_connections, std::bind (&SessionHandlePtr::session_going_away, this));
+		_gone_away_emitted = false;
 	}
 }
 
 void
 SessionHandlePtr::session_going_away ()
 {
-	set_session (0);
+	if (_session && !_gone_away_emitted) {
+		_gone_away_emitted = true;
+		set_session (0);
+	}
 }
 
 /*-------------------------*/

@@ -52,6 +52,8 @@ class LIBARDOUR_API SessionHandlePtr
 	PBD::ScopedConnectionList _session_connections;
 
 	virtual void session_going_away ();
+	private:
+	bool _gone_away_emitted;
 };
 
 } /* namespace */
