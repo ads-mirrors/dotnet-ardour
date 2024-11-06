@@ -27,19 +27,20 @@ namespace ARDOUR {
 
 class LIBARDOUR_API SessionHandleRef : public PBD::ScopedConnectionList
 {
-  public:
+public:
 	SessionHandleRef (ARDOUR::Session& s);
 	virtual ~SessionHandleRef ();
 
-  protected:
-	ARDOUR::Session&          _session;
+protected:
 	virtual void session_going_away ();
 	virtual void insanity_check ();
+
+	ARDOUR::Session& _session;
 };
 
 class LIBARDOUR_API SessionHandlePtr
 {
-  public:
+public:
 	SessionHandlePtr (ARDOUR::Session* s);
 	SessionHandlePtr () : _session (0) {}
 	virtual ~SessionHandlePtr () {}
@@ -47,12 +48,13 @@ class LIBARDOUR_API SessionHandlePtr
 	virtual void set_session (ARDOUR::Session *);
 	virtual ARDOUR::Session* session() const { return _session; }
 
-  protected:
+protected:
+	virtual void session_going_away ();
+
 	ARDOUR::Session*          _session;
 	PBD::ScopedConnectionList _session_connections;
 
-	virtual void session_going_away ();
-	private:
+private:
 	bool _gone_away_emitted;
 };
 
