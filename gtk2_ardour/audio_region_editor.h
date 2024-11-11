@@ -59,7 +59,7 @@ public:
 	~AudioRegionEditor ();
 
 	void peak_amplitude_thread ();
-	void on_unmap ();
+	void hide ();
 
 private:
 
@@ -103,5 +103,18 @@ private:
 	PBD::Signal<void(double)> PeakAmplitudeFound;
 	PBD::ScopedConnection _peak_amplitude_connection;
 	CrossThreadChannel _peak_channel;
+};
+
+
+class AudioRegionEditorDialog : public ArdourDialog
+{
+public:
+	AudioRegionEditorDialog (ARDOUR::Session*, AudioRegionView*);
+	virtual ~AudioRegionEditorDialog ();
+
+	void handle_response (int);
+
+private:
+	AudioRegionEditor *_regedit;
 };
 

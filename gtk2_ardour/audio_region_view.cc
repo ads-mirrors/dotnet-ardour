@@ -1817,7 +1817,7 @@ void
 AudioRegionView::show_region_editor ()
 {
 	if (editor == 0) {
-		editor = new AudioRegionEditor (trackview.session(), this);
+		editor = new AudioRegionEditorDialog (trackview.session(), this);
 	}
 
 	editor->present ();

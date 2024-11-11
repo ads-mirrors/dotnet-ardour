@@ -750,7 +750,7 @@ void
 RegionView::show_region_editor ()
 {
 	if (!editor) {
-		editor = new RegionEditor (trackview.session(), this);
+		editor = new RegionEditorDialog (trackview.session(), this);
 	}
 
 	editor->present ();

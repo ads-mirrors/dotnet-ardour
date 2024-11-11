@@ -40,7 +40,7 @@
 #include "marker.h"
 
 class TimeAxisView;
-class RegionEditor;
+class ArdourDialog;
 class GhostRegion;
 class AutomationTimeAxisView;
 class AutomationRegionView;
@@ -202,7 +202,7 @@ protected:
 	ArdourCanvas::Polygon* sync_mark; ///< polygon for sync position
 	ArdourCanvas::Line* sync_line; ///< polygon for sync position
 
-	RegionEditor* editor;
+	ArdourDialog* editor;
 
 	std::vector<ControlPoint *> control_points;
 	double current_visible_sync_position;
