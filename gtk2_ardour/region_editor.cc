@@ -5,6 +5,7 @@
  * Copyright (C) 2010-2012 Carl Hetherington <carl@carlh.net>
  * Copyright (C) 2013-2019 Robin Gareus <robin@gareus.org>
  * Copyright (C) 2014-2015 Nick Mainsbridge <mainsbridge@gmail.com>
+ * Copyright (C) 2024 Ben Loftis <ben.loftis@harrisonaudio.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,8 +65,7 @@ using namespace std;
 using namespace Gtkmm2ext;
 
 RegionEditor::RegionEditor (Session* s, RegionView* rv)
-	: ArdourDialog (_("Region"))
-	, _table (9, 3)
+	: _table (9, 3)
 	, _table_row (0)
 	, _region (rv->region ())
 	, name_label (_("Name:"))
@@ -190,16 +190,7 @@ RegionEditor::RegionEditor (Session* s, RegionView* rv)
 	_table.attach (region_fx_label, 2, 3, 0, 1, Gtk::FILL, Gtk::FILL);
 	_table.attach (_region_fx_box,  2, 3, 1, _table_row + 2, Gtk::FILL, Gtk::FILL);
 
-	get_vbox()->pack_start (_table, true, true);
-
-	add_button (Gtk::Stock::CLOSE, Gtk::RESPONSE_ACCEPT);
-
-	set_name ("RegionEditorWindow");
-	add_events (Gdk::KEY_PRESS_MASK|Gdk::KEY_RELEASE_MASK);
-
-	signal_response().connect (sigc::mem_fun (*this, &RegionEditor::handle_response));
-
-	set_title (string_compose (_("Region '%1'"), _region->name()));
+	pack_start (_table, true, true);
 
 	for (uint32_t i = 0; i < _region->sources().size(); ++i) {
 		_sources.append (_region->source(i)->name());
@@ -498,12 +489,6 @@ RegionEditor::on_delete_event (GdkEventAny*)
 	bounds_changed (change);
 
 	return true;
-}
-
-void
-RegionEditor::handle_response (int)
-{
-	hide ();
 }
 
 /* ****************************************************************************/
@@ -1119,4 +1104,33 @@ RegionEditor::RegionFxEntry::drag_data_get (Glib::RefPtr<Gdk::DragContext> const
 	}
 	data.set (data.get_target (), 8, (const guchar*)&_plugin_preset_pointer, sizeof (PluginPresetPtr));
 	return true;
+}
+
+
+RegionEditorDialog::RegionEditorDialog (ARDOUR::Session* s, RegionView* rv)
+ : ArdourDialog (_("Region"))
+{
+	_regedit = new RegionEditor(s, rv);
+	
+	get_vbox()->pack_start (*_regedit, true, true);
+
+	add_button (Gtk::Stock::CLOSE, Gtk::RESPONSE_ACCEPT);
+
+	set_name ("RegionEditorWindow");
+	add_events (Gdk::KEY_PRESS_MASK|Gdk::KEY_RELEASE_MASK);
+
+	signal_response().connect (sigc::mem_fun (*this, &RegionEditorDialog::handle_response));
+}
+
+RegionEditorDialog::~RegionEditorDialog()
+{
+	delete _regedit;
+	_regedit = 0;
+}
+
+void
+RegionEditorDialog::handle_response (int)
+{
+	_regedit->hide();
+	hide();
 }

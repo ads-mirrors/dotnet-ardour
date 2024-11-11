@@ -22,6 +22,8 @@
 
 #include <cmath>
 
+#include <gtkmm/stock.h>
+
 #include <gtkmm2ext/utils.h>
 
 #include "pbd/memento_command.h"
@@ -354,8 +356,36 @@ AudioRegionEditor::refill_region_line ()
 }
 
 void
-AudioRegionEditor::on_unmap ()
+AudioRegionEditor::hide ()
 {
 	_show_on_touch.set_active (false);
-	ArdourDialog::on_unmap ();
+}
+
+
+AudioRegionEditorDialog::AudioRegionEditorDialog (ARDOUR::Session* s, AudioRegionView* rv)
+ : ArdourDialog (_("Region"))
+{
+	_regedit = new AudioRegionEditor(s, rv);
+
+	get_vbox()->pack_start (*_regedit, true, true);
+
+	add_button (Gtk::Stock::CLOSE, Gtk::RESPONSE_ACCEPT);
+
+	set_name ("RegionEditorWindow");
+	add_events (Gdk::KEY_PRESS_MASK|Gdk::KEY_RELEASE_MASK);
+
+	signal_response().connect (sigc::mem_fun (*this, &AudioRegionEditorDialog::handle_response));
+}
+
+AudioRegionEditorDialog::~AudioRegionEditorDialog()
+{
+	delete _regedit;
+	_regedit = 0;
+}
+
+void
+AudioRegionEditorDialog::handle_response (int)
+{
+	_regedit->hide();
+	hide();
 }

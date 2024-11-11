@@ -46,7 +46,6 @@
 #include "audio_clock.h"
 #include "ardour_dialog.h"
 #include "plugin_interest.h"
-#include "region_editor.h"
 
 namespace ARDOUR {
 	class Region;
@@ -57,7 +56,7 @@ namespace ARDOUR {
 class RegionView;
 class ClockGroup;
 
-class RegionEditor : public ArdourDialog
+class RegionEditor : public Gtk::VBox, public ARDOUR::SessionHandlePtr
 {
 public:
 	RegionEditor (ARDOUR::Session*, RegionView*);
@@ -186,7 +185,6 @@ private:
 	gint breleased (GdkEventButton* ev, Gtk::SpinButton* but, void (RegionEditor::*pmf)());
 
 	bool on_delete_event (GdkEventAny *);
-	void handle_response (int);
 
 	bool spin_arrow_grab;
 
@@ -194,5 +192,18 @@ private:
 	Gtk::ListViewText _sources;
 
 	void set_clock_mode_from_primary ();
+};
+
+
+class RegionEditorDialog : public ArdourDialog
+{
+public:
+	RegionEditorDialog (ARDOUR::Session*, RegionView*);
+	virtual ~RegionEditorDialog ();
+
+	void handle_response (int);
+
+private:
+	RegionEditor *_regedit;
 };
 
