@@ -32,7 +32,8 @@
 
 #include "gtkmm2ext/cairo_packer.h"
 
-#include "region_properties_box.h"
+#include "region_editor.h"
+#include "audio_clock.h"
 
 namespace ARDOUR
 {
@@ -40,19 +41,22 @@ namespace ARDOUR
 	class Location;
 }
 
-class AudioRegionPropertiesBox : public RegionPropertiesBox
+class RoutePropertiesBox : public Gtk::HBox, public ARDOUR::SessionHandlePtr
 {
 public:
-	AudioRegionPropertiesBox ();
-	~AudioRegionPropertiesBox ();
+	RoutePropertiesBox ();
+	~RoutePropertiesBox ();
 
-	void set_regionview (RegionView *r);
+	virtual void set_route (std::shared_ptr<ARDOUR::Route>);
+
+protected:
+	std::shared_ptr<ARDOUR::Region> _route;
+
+	Gtk::Label _header_label;
 
 private:
-	ArdourWidgets::ArdourButton fade_in_enable_button;
-	ArdourWidgets::ArdourButton fade_out_enable_button;
+	void property_changed (const PBD::PropertyChange& what_changed);
 
-	ArdourWidgets::ArdourButton gain_control;
-	ArdourWidgets::ArdourButton stretch_selector;
+	PBD::ScopedConnection state_connection;
 };
 

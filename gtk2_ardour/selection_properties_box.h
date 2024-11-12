@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Paul Davis <paul@linuxaudiosystems.com>
- * Copyright (C) 2021 Ben Loftis <ben@harrisonconsoles.com>
+ * Copyright (C) 2024 Ben Loftis <ben@harrisonconsoles.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
  */
 
 #pragma once
+
+//#define SELECTION_PROPERTIES_BOX_TODO 1
 
 #include <map>
 
@@ -47,7 +49,9 @@ class MidiRegionPropertiesBox;
 class AudioRegionOperationsBox;
 class MidiRegionOperationsBox;
 
-class SelectionPropertiesBox : public Gtk::VBox, public ARDOUR::SessionHandlePtr
+class RoutePropertiesBox;
+
+class SelectionPropertiesBox : public Gtk::HBox, public ARDOUR::SessionHandlePtr
 {
 public:
 	SelectionPropertiesBox ();
@@ -73,6 +77,8 @@ private:
 	MidiRegionOperationsBox* _midi_ops_box;
 
 	SlotPropertiesBox* _slot_prop_box;
+
+	RoutePropertiesBox* _route_prop_box;
 
 	void selection_changed ();
 

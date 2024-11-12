@@ -29,12 +29,12 @@
 #include "ardour/session.h"
 
 #include "audio_clock.h"
-#include "editor_automation_line.h"
+#include "automation_line.h"
 #include "control_point.h"
 #include "editor.h"
 #include "region_view.h"
 
-#include "audio_region_properties_box.h"
+#include "route_properties_box.h"
 
 #include "pbd/i18n.h"
 
@@ -44,56 +44,25 @@ using namespace ArdourWidgets;
 using std::max;
 using std::min;
 
-RegionPropertiesBox::RegionPropertiesBox ()
-	: _region_ed(0)
+RoutePropertiesBox::RoutePropertiesBox ()
 {
-	pack_start (_reged_box, true, false);
-	_reged_box.show();
+	show_all();
 }
 
-RegionPropertiesBox::~RegionPropertiesBox ()
+RoutePropertiesBox::~RoutePropertiesBox ()
 {
-}
-
-void
-RegionPropertiesBox::set_session (Session* s)
-{
-	SessionHandlePtr::set_session (s);
-
-	if (s) {
-		return;
-	}
 }
 
 void
-RegionPropertiesBox::set_regionview (RegionView *rv)
+RoutePropertiesBox::set_route (std::shared_ptr<ARDOUR::Route> rt)
 {
-	std::shared_ptr<Region> r = rv->region();
-
-	if (_region_ed) {
-		_reged_box.remove(*_region_ed);
-		delete _region_ed;
-	}
-
-	_region_ed = manage (new RegionEditor(&r->session(), rv));
-	_reged_box.pack_start(*_region_ed, false, false);
-
-	_reged_box.show();
-	_region_ed->show();
-
-	set_session (&r->session ());
-
-	state_connection.disconnect ();
-
-	_region = r;
-
-	PBD::PropertyChange interesting_stuff;
-	region_changed (interesting_stuff);
-
-	_region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&RegionPropertiesBox::region_changed, this, _1), gui_context ());
+	//TODO: route properties
+//	rt->PropertyChanged.connect (state_connection, invalidator (*this), boost::bind (&RoutePropertiesBox::region_changed, this, _1), gui_context ());
 }
 
 void
-RegionPropertiesBox::region_changed (const PBD::PropertyChange& what_changed)
+RoutePropertiesBox::property_changed (const PBD::PropertyChange& what_changed)
 {
+
+
 }

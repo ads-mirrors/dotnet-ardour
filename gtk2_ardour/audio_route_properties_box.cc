@@ -29,12 +29,12 @@
 #include "ardour/session.h"
 
 #include "audio_clock.h"
-#include "editor_automation_line.h"
+#include "automation_line.h"
 #include "control_point.h"
 #include "editor.h"
 #include "region_view.h"
 
-#include "audio_region_properties_box.h"
+#include "audio_route_properties_box.h"
 
 #include "pbd/i18n.h"
 
@@ -44,56 +44,17 @@ using namespace ArdourWidgets;
 using std::max;
 using std::min;
 
-RegionPropertiesBox::RegionPropertiesBox ()
-	: _region_ed(0)
+AudioRoutePropertiesBox::AudioRoutePropertiesBox ()
 {
-	pack_start (_reged_box, true, false);
-	_reged_box.show();
+	_header_label.set_text (_("AUDIO Region Properties:"));
+
+	Gtk::Table* audio_t = manage (new Gtk::Table ());
+	audio_t->set_homogeneous (true);
+	audio_t->set_spacings (4);
+
+	pack_start (*audio_t);
 }
 
-RegionPropertiesBox::~RegionPropertiesBox ()
-{
-}
-
-void
-RegionPropertiesBox::set_session (Session* s)
-{
-	SessionHandlePtr::set_session (s);
-
-	if (s) {
-		return;
-	}
-}
-
-void
-RegionPropertiesBox::set_regionview (RegionView *rv)
-{
-	std::shared_ptr<Region> r = rv->region();
-
-	if (_region_ed) {
-		_reged_box.remove(*_region_ed);
-		delete _region_ed;
-	}
-
-	_region_ed = manage (new RegionEditor(&r->session(), rv));
-	_reged_box.pack_start(*_region_ed, false, false);
-
-	_reged_box.show();
-	_region_ed->show();
-
-	set_session (&r->session ());
-
-	state_connection.disconnect ();
-
-	_region = r;
-
-	PBD::PropertyChange interesting_stuff;
-	region_changed (interesting_stuff);
-
-	_region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&RegionPropertiesBox::region_changed, this, _1), gui_context ());
-}
-
-void
-RegionPropertiesBox::region_changed (const PBD::PropertyChange& what_changed)
+AudioRoutePropertiesBox::~AudioRoutePropertiesBox ()
 {
 }

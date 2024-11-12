@@ -32,27 +32,14 @@
 
 #include "gtkmm2ext/cairo_packer.h"
 
-#include "region_properties_box.h"
+#include "route_properties_box.h"
 
-namespace ARDOUR
-{
-	class Session;
-	class Location;
-}
-
-class AudioRegionPropertiesBox : public RegionPropertiesBox
+class AudioRoutePropertiesBox : public RoutePropertiesBox
 {
 public:
-	AudioRegionPropertiesBox ();
-	~AudioRegionPropertiesBox ();
-
-	void set_regionview (RegionView *r);
+	AudioRoutePropertiesBox ();
+	~AudioRoutePropertiesBox ();
 
 private:
-	ArdourWidgets::ArdourButton fade_in_enable_button;
-	ArdourWidgets::ArdourButton fade_out_enable_button;
 
-	ArdourWidgets::ArdourButton gain_control;
-	ArdourWidgets::ArdourButton stretch_selector;
 };
-
