@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011-2017 Paul Davis <paul@linuxaudiosystems.com>
- * Copyright (C) 2021 Ben Loftis <ben@harrisonconsoles.com>
+ * Copyright (C) 2024 Ben Loftis <ben@harrisonconsoles.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,12 +17,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <algorithm>
 #include "pbd/compose.h"
+#include <algorithm>
 
+#include "gtkmm2ext/actions.h"
 #include "gtkmm2ext/gui_thread.h"
 #include "gtkmm2ext/utils.h"
-#include "gtkmm2ext/actions.h"
 
 #include "ardour/location.h"
 #include "ardour/profile.h"
@@ -34,32 +34,66 @@
 #include "editor.h"
 #include "region_view.h"
 
+#include "audio_region_properties_box.h"
+
 #include "pbd/i18n.h"
 
 using namespace Gtk;
 using namespace ARDOUR;
-using std::min;
+using namespace ArdourWidgets;
 using std::max;
+using std::min;
 
-MidiRegionPropertiesBox::MidiRegionPropertiesBox ()
+RegionPropertiesBox::RegionPropertiesBox ()
+	: _region_ed(0)
 {
-	pack_start (table, false, false);
-
-	table.set_homogeneous (true);
-	table.set_spacings (0);
-	table.set_border_width (2);
-	table.set_col_spacings (2);
-
-	
+	pack_start (_reged_box, true, false);
+	_reged_box.show();
 }
 
-MidiRegionPropertiesBox::~MidiRegionPropertiesBox ()
+RegionPropertiesBox::~RegionPropertiesBox ()
 {
 }
 
 void
-MidiRegionPropertiesBox::set_session (Session* s)
+RegionPropertiesBox::set_session (Session* s)
 {
 	SessionHandlePtr::set_session (s);
+
+	if (s) {
+		return;
+	}
 }
 
+void
+RegionPropertiesBox::set_regionview (RegionView *rv)
+{
+	std::shared_ptr<Region> r = rv->region();
+
+	if (_region_ed) {
+		_reged_box.remove(*_region_ed);
+		delete _region_ed;
+	}
+
+	_region_ed = manage (new RegionEditor(&r->session(), rv));
+	_reged_box.pack_start(*_region_ed, false, false);
+
+	_reged_box.show();
+	_region_ed->show();
+
+	set_session (&r->session ());
+
+	state_connection.disconnect ();
+
+	_region = r;
+
+	PBD::PropertyChange interesting_stuff;
+	region_changed (interesting_stuff);
+
+	_region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&RegionPropertiesBox::region_changed, this, _1), gui_context ());
+}
+
+void
+RegionPropertiesBox::region_changed (const PBD::PropertyChange& what_changed)
+{
+}

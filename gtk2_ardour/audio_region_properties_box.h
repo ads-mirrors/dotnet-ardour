@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Paul Davis <paul@linuxaudiosystems.com>
- * Copyright (C) 2021 Ben Loftis <ben@harrisonconsoles.com>
+ * Copyright (C) 2024 Ben Loftis <ben@harrisonconsoles.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@
 
 #include "gtkmm2ext/cairo_packer.h"
 
-#include "audio_clock.h"
+#include "region_properties_box.h"
 
 namespace ARDOUR
 {
@@ -40,44 +40,13 @@ namespace ARDOUR
 	class Location;
 }
 
-class RegionPropertiesBox : public Gtk::VBox, public ARDOUR::SessionHandlePtr
-{
-public:
-	RegionPropertiesBox ();
-	~RegionPropertiesBox ();
-
-	virtual void set_region (std::shared_ptr<ARDOUR::Region>);
-
-	void set_session (ARDOUR::Session* s);
-
-protected:
-	std::shared_ptr<ARDOUR::Region> _region;
-
-	Gtk::Label _header_label;
-
-private:
-	void region_changed (const PBD::PropertyChange& what_changed);
-
-	Gtk::Table table;
-
-	AudioClock length_clock;
-	AudioClock start_clock;
-
-	ArdourWidgets::ArdourButton bpm_button;
-	ArdourWidgets::ArdourButton metrum_button;
-
-	ArdourWidgets::ArdourButton bbt_toggle;
-
-	PBD::ScopedConnection state_connection;
-};
-
 class AudioRegionPropertiesBox : public RegionPropertiesBox
 {
 public:
 	AudioRegionPropertiesBox ();
 	~AudioRegionPropertiesBox ();
 
-	virtual void set_region (std::shared_ptr<ARDOUR::Region>);
+	void set_regionview (RegionView *r);
 
 private:
 	ArdourWidgets::ArdourButton fade_in_enable_button;

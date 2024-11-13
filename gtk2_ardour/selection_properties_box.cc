@@ -253,7 +253,6 @@ SelectionPropertiesBox::selection_changed ()
 		selected_regionview = *(selection.regions.begin());
 	}
 
-#if 0 // TODO pack region-properties here
 	if (selected_regionview) {
 		std::shared_ptr<ARDOUR::Region> r = selected_regionview->region();
 		//region properties
@@ -265,5 +264,4 @@ SelectionPropertiesBox::selection_changed ()
 			_audio_prop_box->show();
 		}
 	}
-#endif
 }

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Paul Davis <paul@linuxaudiosystems.com>
- * Copyright (C) 2021 Ben Loftis <ben@harrisonconsoles.com>
+ * Copyright (C) 2024 Ben Loftis <ben@harrisonconsoles.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,20 +30,34 @@
 
 #include "gtkmm2ext/cairo_packer.h"
 
+#include "region_editor.h"
+
 namespace ARDOUR {
 	class Session;
 	class Location;
 }
 
-class MidiRegionPropertiesBox : public Gtk::VBox, public ARDOUR::SessionHandlePtr
+class RegionPropertiesBox : public Gtk::VBox, public ARDOUR::SessionHandlePtr
 {
 public:
-	MidiRegionPropertiesBox ();
-	~MidiRegionPropertiesBox ();
+	RegionPropertiesBox ();
+	~RegionPropertiesBox ();
 
-	void set_session (ARDOUR::Session*);
+	virtual void set_regionview (RegionView *r);
 
-private:
-	Gtk::Table table;
+	void set_session (ARDOUR::Session* s);
+
+protected:
+	std::shared_ptr<ARDOUR::Region> _region;
+
+	Gtk::Label _header_label;
+
+protected:
+	Gtk::HBox  _reged_box;
+
+	PBD::ScopedConnection state_connection;
+
+	RegionEditor *_region_ed;
+
+	void region_changed (const PBD::PropertyChange& what_changed);
 };
-

@@ -989,7 +989,7 @@ RegionEditor::RegionFxEntry::RegionFxEntry (std::shared_ptr<RegionFxPlugin> rfx,
 	_box.pack_start (_fx_btn, true, true);
 
 	if (rfx->plugin ()) {
-		_plugin_preset_pointer = PluginPresetPtr (new PluginPreset (rfx->plugin ()->get_info ()));
+//		_plugin_preset_pointer = PluginPresetPtr (new PluginPreset (rfx->plugin ()->get_info ()));
 		_selectable = true;
 	} else {
 		_plugin_preset_pointer = 0;
