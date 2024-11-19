@@ -41,6 +41,7 @@ using std::min;
 using std::max;
 
 SelectionPropertiesBox::SelectionPropertiesBox ()
+	: _region_editor (nullptr)
 {
 	init ();
 
@@ -49,15 +50,18 @@ SelectionPropertiesBox::SelectionPropertiesBox ()
 
 	pack_start(*_time_info_box, false, false, 0);
 	pack_start(*_route_prop_box, false, false, 0);
+	pack_start(_region_editor_box, false, false, 0);
 
 	_time_info_box->set_no_show_all ();
 	_route_prop_box->set_no_show_all ();
+	_region_editor_box.set_no_show_all ();
 }
 
 SelectionPropertiesBox::~SelectionPropertiesBox ()
 {
 	delete _time_info_box;
 	delete _route_prop_box;
+	delete _region_editor;
 }
 
 void
@@ -102,11 +106,24 @@ SelectionPropertiesBox::track_mouse_mode ()
 }
 
 void
+SelectionPropertiesBox::delete_region_editor ()
+{
+	if (!_region_editor) {
+		return;
+	}
+	_region_editor_box.remove ();
+	delete _region_editor;
+	_region_editor = nullptr;
+	_region_editor_box.hide ();
+}
+
+void
 SelectionPropertiesBox::selection_changed ()
 {
 	if (!_session) {
 		_time_info_box->hide ();
 		_route_prop_box->hide ();
+		delete_region_editor ();
 		return;
 	}
 
@@ -127,5 +144,28 @@ SelectionPropertiesBox::selection_changed ()
 		_route_prop_box->hide();
 	}
 
+	if (selection.regions.size () == 1)  {
+		RegionView* rv = (selection.regions.front ());
+		if (!_region_editor || _region_editor->region () != rv->region ()) {
+			delete_region_editor ();
+			AudioRegionView* arv = dynamic_cast<AudioRegionView*> (rv);
+			if (arv) {
+				_region_editor = new AudioRegionEditor (_session, arv);
+			} else {
+				_region_editor = new RegionEditor (_session, rv);
+			}
+			_region_editor->set_label (string_compose (_("Region '%1'"), rv->region()->name ()));
+			_region_editor->set_padding (4);
+			_region_editor->set_edge_color (0x000000ff); // black
+			_region_editor->show_all ();
+			_region_editor_box.add (*_region_editor);
+			rv->RegionViewGoingAway.connect_same_thread (_region_connection, std::bind (&SelectionPropertiesBox::delete_region_editor, this));
+		}
+		_region_editor_box.show ();
+	} else {
+		/* only hide region props when selecting a track or trigger ..*/
+		if (_route_prop_box->get_visible () || !selection.markers.empty () || !selection.playlists.empty () || !selection.triggers.empty ()) {
+			delete_region_editor ();
+		}
 	}
 }
