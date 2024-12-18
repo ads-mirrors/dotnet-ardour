@@ -931,7 +931,7 @@ AudioClock::set_duration (Temporal::timecnt_t const & dur, bool force)
 }
 
 void
-AudioClock::set (timepos_t const & w, bool force)
+AudioClock::set (timepos_t const & w, bool force, bool round_to_beat)
 {
 	is_duration = false;
 
@@ -961,7 +961,15 @@ AudioClock::set (timepos_t const & w, bool force)
 			break;
 
 		case BBT:
-			set_bbt (timecnt_t (when));
+			if (round_to_beat) {
+				TempoMap::SharedPtr tmap (TempoMap::use());
+				Temporal::BBT_Argument BBT = tmap->bbt_at (when);
+				BBT.beats = 0;
+				BBT.ticks = 0;
+				set_bbt (timecnt_t (tmap->sample_at(BBT)));
+			} else {
+				set_bbt (timecnt_t (when));
+			}
 			btn_en = true;
 			break;
 
@@ -1825,6 +1833,7 @@ AudioClock::on_scroll_event (GdkEventScroll *ev)
 
 	Field f = index_to_field (index);
 	timepos_t step;
+	timecnt_t beat = timecnt_t (Temporal::Beats (1, 0));
 
 	switch (ev->direction) {
 
@@ -1837,7 +1846,7 @@ AudioClock::on_scroll_event (GdkEventScroll *ev)
 			if (is_duration) {
 				AudioClock::set_duration (current_duration() + step, true); // XXX step is too small ?!
 			} else {
-				AudioClock::set (last_when() + step, true);
+				AudioClock::set (last_when() + step, true, step > beat);
 			}
 			ValueChanged (); /* EMIT_SIGNAL */
 		}
@@ -1856,7 +1865,7 @@ AudioClock::on_scroll_event (GdkEventScroll *ev)
 			} else if (!_negative_allowed && last_when() < step) {
 				AudioClock::set (timepos_t (), true);
 			} else {
-				AudioClock::set (last_when().earlier (step), true);
+				AudioClock::set (last_when().earlier (step), true, step > beat);
 			}
 
 			ValueChanged (); /* EMIT_SIGNAL */
