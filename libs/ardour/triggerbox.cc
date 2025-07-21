@@ -3792,7 +3792,6 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 	SlotArmInfo* ai = _arm_info.load();
 
 	if (!ai) {
-		std::cerr << "no AI\n";
 		return;
 	}
 
@@ -3800,7 +3799,6 @@ TriggerBox::maybe_capture (BufferSet& bufs, samplepos_t start_sample, samplepos_
 	bool reached_end = false;
 
 	if (!ai->slot->armed()) {
-		std::cerr << "not armed!\n";
 		/* since _arm_info is set, we have been capturing for a slot,
 		   but now the slot is no longer armed.
 		*/
