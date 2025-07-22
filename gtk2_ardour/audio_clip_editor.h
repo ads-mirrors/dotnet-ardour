@@ -38,7 +38,6 @@
 
 #include "widgets/ardour_button.h"
 
-#include "canvas/canvas.h"
 #include "canvas/container.h"
 #include "canvas/line.h"
 #include "canvas/rectangle.h"
@@ -69,24 +68,18 @@ namespace ArdourWaveView
 class AudioClipEditor :  public CueEditor
 {
 public:
-	AudioClipEditor (std::string const &, bool with_transport);
+	AudioClipEditor (std::string const &, bool with_transport = false);
 	~AudioClipEditor ();
 
 	void canvas_allocate (Gtk::Allocation&);
 
-	Gtk::Widget& viewport();
 	Gtk::Widget& contents ();
 
 	void set_trigger (ARDOUR::TriggerReference&);
-	void set_region (std::shared_ptr<ARDOUR::AudioRegion>);
 	void set_region (std::shared_ptr<ARDOUR::Region> r);
 	void region_changed (const PBD::PropertyChange& what_changed);
 
-	double      sample_to_pixel (ARDOUR::samplepos_t);
-	samplepos_t pixel_to_sample (double);
-
 	bool key_press (GdkEventKey*);
-	bool minsec_ruler_event (GdkEvent*);
 
 	/* EditingContext API. As of July 2025, we do not implement most of
 	 * these
@@ -110,26 +103,13 @@ public:
 	bool canvas_control_point_event (GdkEvent* event, ArdourCanvas::Item*, ControlPoint*) { return true; }
 	bool canvas_bg_event (GdkEvent* event, ArdourCanvas::Item*) { return true; }
 
-	ArdourCanvas::Container* get_trackview_group () const;
-	ArdourCanvas::Container* get_noscroll_group() const;
-	ArdourCanvas::ScrollGroup* get_hscroll_group () const;
-	ArdourCanvas::ScrollGroup* get_cursor_scroll_group () const;
-
 	samplecnt_t current_page_samples() const;
-	double visible_canvas_width() const;
 	void set_samples_per_pixel (samplecnt_t);
-
-	ArdourCanvas::GtkCanvasViewport* get_canvas_viewport() const { return const_cast<ArdourCanvas::GtkCanvasViewport*> (&_viewport); }
-	ArdourCanvas::GtkCanvas* get_canvas() const { return &canvas; }
-
-	std::pair<Temporal::timepos_t,Temporal::timepos_t> max_zoom_extent() const;
 
 	Gdk::Cursor* which_track_cursor () const { return nullptr; }
 	Gdk::Cursor* which_mode_cursor () const { return nullptr; }
 	Gdk::Cursor* which_trim_cursor (bool left_side) const { return nullptr; }
 	Gdk::Cursor* which_canvas_cursor (ItemType type) const { return nullptr; }
-
-	RegionSelection region_selection();
 
 	Temporal::timepos_t snap_to_grid (Temporal::timepos_t const & start, Temporal::RoundMode direction, ARDOUR::SnapPref gpref) const { return start; }
 	void snap_to_internal (Temporal::timepos_t& first, Temporal::RoundMode direction = Temporal::RoundNearest, ARDOUR::SnapPref gpref = ARDOUR::SnapToAny_Visual, bool ensure_snap = false) const {}
@@ -143,21 +123,16 @@ public:
 	void instant_save() {};
 
 	void point_selection_changed () {}
-	void step_mouse_mode (bool next);
-	void mouse_mode_toggled (Editing::MouseMode);
 	void delete_ () {}
 	void paste (float times, bool from_context_menu) {}
 	void keyboard_paste () {}
 	void cut_copy (Editing::CutCopyOp) {}
 
-	void register_actions() {}
-	void visual_changer (const VisualChange&) {}
-	void build_zoom_focus_menu () {}
+	void maybe_update ();
 
-private:
-	ArdourCanvas::GtkCanvasViewport _viewport;
-	ArdourCanvas::GtkCanvas&         canvas;
+	bool idle_data_captured () { return false; }
 
+ private:
 	ArdourCanvas::Container*         line_container;
 	ArdourCanvas::Line*              start_line;
 	ArdourCanvas::Line*              end_line;
@@ -184,7 +159,6 @@ private:
 	double                                 non_wave_height;
 	samplepos_t                            left_origin;
 	double                                 scroll_fraction;
-	std::shared_ptr<ARDOUR::AudioRegion> audio_region;
 
 	void scroll_left ();
 	void scrol_right ();
@@ -230,4 +204,13 @@ private:
 	void pack_outer (Gtk::Box&);
 
 	bool canvas_enter_leave (GdkEventCrossing* ev);
+
+	void begin_write ();
+	void end_write ();
+
+	void show_count_in (std::string const &);
+	void hide_count_in ();
+
+	void unset (bool trigger_too);
+	void load_shared_bindings ();
 };

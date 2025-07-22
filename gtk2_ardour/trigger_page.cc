@@ -144,25 +144,21 @@ TriggerPage::TriggerPage ()
 	_sidebar_pager2.set_index (3);
 
 	_midi_editor = new Pianoroll (X_("MIDICueEditor"));
-	_audio_editor = new AudioClipEditor (X_("AudioClipEditor"), true);
+	_audio_editor = new AudioClipEditor (X_("AudioClipEditor"));
+
+	_audio_editor->get_canvas_viewport()->show ();
+	_midi_editor->get_canvas_viewport()->show ();
 
 	/* Bottom -- Properties of selected Slot/Region */
 
-	table.set_homogeneous (false);
-	table.set_spacings (8);  //match to slot_properties_box::set_spacings
-	table.set_border_width (8);
+	hpacker.set_homogeneous (false);
+	hpacker.set_spacing (8);  //match to slot_properties_box::set_spacings
+	hpacker.set_border_width (8);
 
-	int col = 0;
-	table.attach (_properties_box, col, col + 1, 0, 1, Gtk::EXPAND | Gtk::FILL, Gtk::SHRINK | Gtk::FILL);
-	++col;
-	table.attach (_audio_trig_box, col, col + 1, 0, 1, Gtk::FILL, Gtk::SHRINK | Gtk::FILL);
-	clip_editor_column = ++col;
-	++col;
-
-	table.set_no_show_all ();
-
-	_parameter_box.pack_start (table);
-	_parameter_box.show ();
+	hpacker.pack_start (_properties_box, false, false);
+	hpacker.pack_start (_midi_trig_box, false, false);
+	hpacker.pack_start (_audio_trig_box, false, false);
+	hpacker.set_no_show_all ();
 
 	_sidebar_notebook.signal_switch_page().connect ([this](GtkNotebookPage*, guint page) {
 			std::string label (_sidebar_notebook.get_tab_label_text (*_sidebar_notebook.get_nth_page (page)));
@@ -185,7 +181,7 @@ TriggerPage::TriggerPage ()
 	/* Top-level Layout */
 	content_app_bar.add (_application_bar);
 	content_main.add (_strip_group_box);
-	content_att_bottom.add (_parameter_box);
+	content_att_bottom.add (hpacker);
 	content_att_right.add (_sidebar_vbox);
 
 	/* Show all */
@@ -264,6 +260,7 @@ TriggerPage::get_state () const
 	node->set_property (X_("triggerpage-sidebar-btn2"), _sidebar_pager2.index ());
 
 	node->add_child_nocopy (_midi_editor->get_state());
+	node->add_child_nocopy (_audio_editor->get_state());
 
 	Glib::RefPtr<ToggleAction> act = ActionManager::get_toggle_action ("Cues", "ToggleTriggerList");
 	node->set_property ("show-trigger-list", act->get_active ());
@@ -305,6 +302,11 @@ TriggerPage::set_state (const XMLNode& node, int version)
 	XMLNode* mn = node.child (_midi_editor->editor_name().c_str());
 	if (mn) {
 		_midi_editor->set_state (*mn, version);
+	}
+
+	XMLNode* an = node.child (_audio_editor->editor_name().c_str());
+	if (an) {
+		_audio_editor->set_state (*an, version);
 	}
 
 	bool yn = true;
@@ -369,10 +371,10 @@ TriggerPage::set_session (Session* s)
 	initial_track_display ();
 
 	_properties_box.set_session (s);
-
 	_audio_trig_box.set_session (s);
-
+	_midi_trig_box.set_session (s);
 	_midi_editor->set_session (s);
+	_audio_editor->set_session (s);
 
 	update_title ();
 	start_updating ();
@@ -488,8 +490,9 @@ TriggerPage::trigger_arm_changed (Trigger const * trigger)
 		_audio_trig_box.set_trigger (ref);
 		_audio_trig_box.show ();
 
-		// _audio_editor->set_trigger (ref);
-		_audio_editor->viewport().show ();
+		_audio_editor->set_trigger (ref);
+
+		hpacker.pack_start (_audio_editor->contents(), true, true);
 
 	} else {
 
@@ -497,7 +500,7 @@ TriggerPage::trigger_arm_changed (Trigger const * trigger)
 		_midi_trig_box.show ();
 
 		_midi_editor->set_trigger (ref);
-		_midi_editor->viewport().show ();
+		hpacker.pack_start (_midi_editor->contents(), true, true);
 	}
 
 	if (_show_bottom_pane) {
@@ -508,8 +511,14 @@ TriggerPage::trigger_arm_changed (Trigger const * trigger)
 void
 TriggerPage::hide_all ()
 {
-	_audio_trig_box.hide ();
-	_audio_editor->viewport().hide ();
+	if (_audio_editor->contents().get_parent()) {
+		_audio_editor->contents().get_parent()->remove (_audio_editor->contents());
+	}
+
+	if (_midi_editor->contents().get_parent()) {
+		_midi_editor->contents().get_parent()->remove (_midi_editor->contents());
+	}
+
 	_audio_trig_box.hide ();
 	_midi_trig_box.hide ();
 }
@@ -521,32 +530,25 @@ TriggerPage::selection_changed ()
 
 	hide_all ();
 
-	if (_midi_editor->contents().get_parent()) {
-		_midi_editor->contents().get_parent()->remove (_midi_editor->contents());
-	}
-
-	if (_audio_editor->contents().get_parent()) {
-		_audio_editor->contents().get_parent()->remove (_audio_editor->contents());
-	}
-
 	Tabbable::showhide_att_bottom (false);
 
 	if (selection.triggers.empty ()) {
 		return;
 	}
 
-	TriggerSelection ts      = selection.triggers;
-	TriggerEntry*    entry   = *ts.begin ();
-	TriggerReference ref     = entry->trigger_reference ();
-	TriggerPtr       trigger = entry->trigger ();
+	TriggerReference ref     = selection.triggers.front()->trigger_reference ();
 	std::shared_ptr<TriggerBox> box = ref.box();
 
 	if (box->data_type () == DataType::AUDIO) {
 
-		if (trigger->the_region()) {
-			_audio_trig_box.set_trigger (ref);
-			_audio_trig_box.show ();
-		}
+		_audio_trig_box.set_trigger (ref);
+		_audio_trig_box.show ();
+
+		_audio_editor->set_trigger (ref);
+		_audio_editor->get_canvas_viewport()->show ();
+
+		hpacker.pack_start (_audio_editor->contents(), true, true);
+		_audio_editor->contents().show_all ();
 
 	} else {
 
@@ -554,12 +556,13 @@ TriggerPage::selection_changed ()
 		_midi_trig_box.show ();
 
 		_midi_editor->set_trigger (ref);
+		_midi_editor->get_canvas_viewport()->show ();
 
-		table.attach (_midi_editor->contents(), clip_editor_column, clip_editor_column + 1, 0, 1, Gtk::EXPAND|Gtk::FILL, Gtk::EXPAND|Gtk::FILL);
+		hpacker.pack_start (_midi_editor->contents(), true, true);
 		_midi_editor->contents().show_all ();
 	}
 
-	table.show ();
+	hpacker.show ();
 
 	if (_show_bottom_pane) {
 		Tabbable::showhide_att_bottom (true);

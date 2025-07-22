@@ -46,6 +46,7 @@
 #include "audio_clock.h"
 #include "editor_automation_line.h"
 #include "editor_cursors.h"
+#include "editor_drag.h"
 #include "control_point.h"
 #include "editor.h"
 #include "region_view.h"
@@ -68,7 +69,6 @@ AudioClipEditor::ClipBBTMetric::get_marks (std::vector<ArdourCanvas::Ruler::Mark
 {
 	TriggerPtr trigger (tref.trigger());
 	if (!trigger) {
-		std::cerr << "No trigger\n";
 		return;
 	}
 
@@ -105,14 +105,39 @@ AudioClipEditor::ClipBBTMetric::get_marks (std::vector<ArdourCanvas::Ruler::Mark
 
 AudioClipEditor::AudioClipEditor (std::string const & name, bool with_transport)
 	: CueEditor (name, with_transport)
-	, _viewport (horizontal_adjustment, vertical_adjustment)
-	, canvas (*_viewport.canvas())
 	, clip_metric (nullptr)
 	, scroll_fraction (0)
 	, current_line_drag (0)
 {
 	build_upper_toolbar ();
 	build_canvas ();
+	build_lower_toolbar ();
+
+	load_bindings ();
+	register_actions ();
+
+	build_grid_type_menu ();
+}
+
+void
+AudioClipEditor::load_shared_bindings ()
+{
+	/* Full shared binding loading must have preceded this in some other EditingContext */
+	assert (!need_shared_actions);
+
+	Bindings* b = Bindings::get_bindings (X_("Editing"));
+
+	/* Copy each  shared bindings but give them a new name, which will make them refer to actions
+	 * named after this EditingContext (ie. unique to this EC)
+	 */
+
+	Bindings* shared_bindings = new Bindings (editor_name(), *b);
+	register_common_actions (shared_bindings, editor_name());
+	shared_bindings->associate ();
+
+	/* Attach bindings to the canvas for this editing context */
+
+	bindings.push_back (shared_bindings);
 }
 
 void
@@ -120,7 +145,6 @@ AudioClipEditor::pack_inner (Gtk::Box& box)
 {
 	box.pack_start (snap_box, false, false);
 	box.pack_start (grid_box, false, false);
-	box.pack_start (draw_box, false, false);
 }
 
 void
@@ -129,7 +153,7 @@ AudioClipEditor::pack_outer (Gtk::Box& box)
 	if (with_transport_controls) {
 		box.pack_start (play_box, false, false);
 	}
-
+	std::cerr << "pack up rec box\n";
 	box.pack_start (rec_box, false, false);
 	box.pack_start (follow_playhead_button, false, false);
 }
@@ -137,45 +161,41 @@ AudioClipEditor::pack_outer (Gtk::Box& box)
 void
 AudioClipEditor::build_lower_toolbar ()
 {
-	horizontal_adjustment.signal_value_changed().connect (sigc::mem_fun (*this, &CueEditor::scrolled));
-	_canvas_hscrollbar = manage (new Gtk::HScrollbar (horizontal_adjustment));
-
 	_toolbox.pack_start (*_canvas_hscrollbar, false, false);
-	_toolbox.pack_start (button_bar, false, false);
 }
 
 void
 AudioClipEditor::build_canvas ()
 {
-	canvas.set_background_color (UIConfiguration::instance().color ("arrange base"));
-	canvas.signal_event().connect (sigc::mem_fun (*this, &CueEditor::canvas_pre_event), false);
-	canvas.use_nsglview (UIConfiguration::instance().get_nsgl_view_mode () == NSGLHiRes);
+	_canvas.set_background_color (UIConfiguration::instance().color ("arrange base"));
+	_canvas.signal_event().connect (sigc::mem_fun (*this, &CueEditor::canvas_pre_event), false);
+	_canvas.use_nsglview (UIConfiguration::instance().get_nsgl_view_mode () == NSGLHiRes);
 
-	canvas.PreRender.connect (sigc::mem_fun(*this, &EditingContext::pre_render));
+	_canvas.PreRender.connect (sigc::mem_fun(*this, &EditingContext::pre_render));
 
 	/* scroll group for items that should not automatically scroll
 	 *  (e.g verbose cursor). It shares the canvas coordinate space.
 	*/
-	no_scroll_group = new ArdourCanvas::Container (canvas.root());
+	no_scroll_group = new ArdourCanvas::Container (_canvas.root());
 
-	h_scroll_group = new ArdourCanvas::ScrollGroup (canvas.root(), ArdourCanvas::ScrollGroup::ScrollsHorizontally);
+	h_scroll_group = new ArdourCanvas::ScrollGroup (_canvas.root(), ArdourCanvas::ScrollGroup::ScrollsHorizontally);
 	CANVAS_DEBUG_NAME (h_scroll_group, "audioclip h scroll");
-	canvas.add_scroller (*h_scroll_group);
+	_canvas.add_scroller (*h_scroll_group);
 
 
-	v_scroll_group = new ArdourCanvas::ScrollGroup (canvas.root(), ArdourCanvas::ScrollGroup::ScrollsVertically);
+	v_scroll_group = new ArdourCanvas::ScrollGroup (_canvas.root(), ArdourCanvas::ScrollGroup::ScrollsVertically);
 	CANVAS_DEBUG_NAME (v_scroll_group, "audioclip v scroll");
-	canvas.add_scroller (*v_scroll_group);
+	_canvas.add_scroller (*v_scroll_group);
 
-	hv_scroll_group = new ArdourCanvas::ScrollGroup (canvas.root(),
+	hv_scroll_group = new ArdourCanvas::ScrollGroup (_canvas.root(),
 	                                                 ArdourCanvas::ScrollGroup::ScrollSensitivity (ArdourCanvas::ScrollGroup::ScrollsVertically|
 		                ArdourCanvas::ScrollGroup::ScrollsHorizontally));
 	CANVAS_DEBUG_NAME (hv_scroll_group, "audioclip hv scroll");
-	canvas.add_scroller (*hv_scroll_group);
+	_canvas.add_scroller (*hv_scroll_group);
 
-	cursor_scroll_group = new ArdourCanvas::ScrollGroup (canvas.root(), ArdourCanvas::ScrollGroup::ScrollsHorizontally);
+	cursor_scroll_group = new ArdourCanvas::ScrollGroup (_canvas.root(), ArdourCanvas::ScrollGroup::ScrollsHorizontally);
 	CANVAS_DEBUG_NAME (cursor_scroll_group, "audioclip cursor scroll");
-	canvas.add_scroller (*cursor_scroll_group);
+	_canvas.add_scroller (*cursor_scroll_group);
 
 	/*a group to hold global rects like punch/loop indicators */
 	global_rect_group = new ArdourCanvas::Container (hv_scroll_group);
@@ -197,7 +217,7 @@ AudioClipEditor::build_canvas ()
 	minsec_ruler->set_outline_color (UIConfiguration::instance().color (X_("theme:contrasting less")));
 	n_timebars++;
 
-	minsec_ruler->Event.connect (sigc::mem_fun (*this, &AudioClipEditor::minsec_ruler_event));
+	minsec_ruler->Event.connect (sigc::mem_fun (*this, &CueEditor::ruler_event));
 
 	data_group = new ArdourCanvas::Container (hv_scroll_group);
 	CANVAS_DEBUG_NAME (data_group, "cue data group");
@@ -216,17 +236,17 @@ AudioClipEditor::build_canvas ()
 	_playhead_cursor->canvas_item().raise_to_top();
 	h_scroll_group->raise_to_top ();
 
-	canvas.set_name ("AudioClipCanvas");
-	canvas.add_events (Gdk::POINTER_MOTION_HINT_MASK | Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | Gdk::KEY_RELEASE_MASK);
-	canvas.set_can_focus ();
-	canvas.signal_show().connect (sigc::mem_fun (*this, &CueEditor::catch_pending_show_region));
-	_viewport.signal_size_allocate().connect (sigc::mem_fun(*this, &AudioClipEditor::canvas_allocate), false);
+	_canvas.set_name ("AudioClipCanvas");
+	_canvas.add_events (Gdk::POINTER_MOTION_HINT_MASK | Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | Gdk::KEY_RELEASE_MASK);
+	_canvas.set_can_focus ();
+	_canvas_viewport.signal_size_allocate().connect (sigc::mem_fun(*this, &AudioClipEditor::canvas_allocate), false);
 
-	_toolbox.pack_start (_viewport, true, true);
+	_toolbox.pack_start (_canvas_viewport, true, true);
 
 	/* the lines */
 
 	line_container = new ArdourCanvas::Container (data_group);
+	CANVAS_DEBUG_NAME (line_container, "audio clip line container");
 
 	const double line_width = 3.;
 	double scale = UIConfiguration::instance().get_ui_scale();
@@ -300,15 +320,15 @@ AudioClipEditor::key_press (GdkEventKey* ev)
 void
 AudioClipEditor::position_lines ()
 {
-	if (!audio_region) {
+	if (!_region) {
 		return;
 	}
 
-	start_line->set_x0 (sample_to_pixel (audio_region->start ().samples ()));
-	start_line->set_x1 (sample_to_pixel (audio_region->start ().samples ()));
+	start_line->set_x0 (sample_to_pixel (_region->start ().samples ()));
+	start_line->set_x1 (sample_to_pixel (_region->start ().samples ()));
 
-	end_line->set_x0 (sample_to_pixel (audio_region->end ().samples ()));
-	end_line->set_x1 (sample_to_pixel (audio_region->end ().samples ()));
+	end_line->set_x0 (sample_to_pixel (_region->end ().samples ()));
+	end_line->set_x1 (sample_to_pixel (_region->end ().samples ()));
 }
 
 AudioClipEditor::LineDrag::LineDrag (AudioClipEditor& ed, ArdourCanvas::Line& l)
@@ -339,7 +359,7 @@ AudioClipEditor::LineDrag::motion (GdkEventMotion* ev)
 void
 AudioClipEditor::set_colors ()
 {
-	canvas.set_background_color (UIConfiguration::instance ().color (X_("theme:bg")));
+	_canvas.set_background_color (UIConfiguration::instance ().color (X_("theme:bg")));
 
 	start_line->set_outline_color (UIConfiguration::instance ().color (X_("theme:contrasting clock")));
 	end_line->set_outline_color (UIConfiguration::instance ().color (X_("theme:contrasting alt")));
@@ -359,47 +379,37 @@ AudioClipEditor::drop_waves ()
 }
 
 void
-AudioClipEditor::set_region (std::shared_ptr<ARDOUR::Region> r)
-{
-	set_region (std::dynamic_pointer_cast<ARDOUR::AudioRegion> (r));
-}
-
-void
 AudioClipEditor::set_trigger (TriggerReference& tr)
 {
-	TriggerPtr trigger (tr.trigger());
-
-	if (trigger == ref.trigger()) {
+	if (tr == ref) {
 		return;
 	}
 
-	ref = tr;
+	CueEditor::set_trigger (tr);
+	rec_box.show ();
 
-	std::shared_ptr<AudioTrigger> at = std::dynamic_pointer_cast<AudioTrigger> (trigger);
-	if (at) {
-		minsec_ruler->show ();
-		minsec_ruler->set_range (0, pixel_to_sample (_visible_canvas_width - 2.));
-	} else {
-		minsec_ruler->hide ();
-	}
-
-	if (ref.trigger()->the_region()) {
-		std::shared_ptr<AudioRegion> ar = std::dynamic_pointer_cast<AudioRegion> (ref.trigger()->the_region());
-		if (ar) {
-			set_region (ar);
-		}
-	}
-
+	minsec_ruler->show ();
+	minsec_ruler->set_range (0, pixel_to_sample (_visible_canvas_width - 2.));
 }
 
 void
-AudioClipEditor::set_region (std::shared_ptr<AudioRegion> r)
+AudioClipEditor::set_region (std::shared_ptr<Region> region)
 {
+	CueEditor::set_region (region);
+
+	if (_visible_pending_region) {
+		return;
+	}
+
 	drop_waves ();
 
-	audio_region = r;
+	if (!region) {
+		return;
+	}
 
-	if (!audio_region) {
+	std::shared_ptr<AudioRegion> r (std::dynamic_pointer_cast<AudioRegion> (region));
+
+	if (!r) {
 		return;
 	}
 
@@ -421,6 +431,7 @@ AudioClipEditor::set_region (std::shared_ptr<AudioRegion> r)
 
 	for (uint32_t n = 0; n < n_chans; ++n) {
 		std::shared_ptr<Region> wr = RegionFactory::get_whole_region_for_source (r->source (n));
+
 		if (!wr) {
 			continue;
 		}
@@ -431,7 +442,7 @@ AudioClipEditor::set_region (std::shared_ptr<AudioRegion> r)
 		}
 
 		WaveView* wv = new WaveView (data_group, war);
-		wv->set_channel (n);
+		wv->set_channel (0);
 		wv->set_show_zero_line (false);
 		wv->set_clip_level (1.0);
 		wv->lower_to_bottom ();
@@ -451,16 +462,20 @@ AudioClipEditor::set_region (std::shared_ptr<AudioRegion> r)
 
 	PBD::PropertyChange interesting_stuff;
 	region_changed (interesting_stuff);
-	audio_region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&AudioClipEditor::region_changed, this, _1), gui_context ());
+
+	region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&AudioClipEditor::region_changed, this, _1), gui_context ());
 }
 
 void
 AudioClipEditor::canvas_allocate (Gtk::Allocation& alloc)
 {
-	canvas.size_allocate (alloc);
+	_canvas.size_allocate (alloc);
 
 	_visible_canvas_width = alloc.get_width();
 	_visible_canvas_height = alloc.get_height();
+
+	/* no track header here, "track width" is the whole canvas */
+	_track_canvas_width = _visible_canvas_width;
 
 	minsec_ruler->set (ArdourCanvas::Rect (2, 2, alloc.get_width() - 4, timebar_height));
 
@@ -471,12 +486,18 @@ AudioClipEditor::canvas_allocate (Gtk::Allocation& alloc)
 	loop_line->set_y1 (_visible_canvas_height - 2.);
 
 	set_wave_heights ();
+
+	catch_pending_show_region ();
+
+	update_grid ();
 }
 
 void
 AudioClipEditor::set_spp_from_length (samplecnt_t len)
 {
-	set_samples_per_pixel (floor (len / _visible_canvas_width));
+	if (_visible_canvas_width) {
+		set_samples_per_pixel (floor (len / _visible_canvas_width));
+	}
 }
 
 void
@@ -511,12 +532,6 @@ AudioClipEditor::set_waveform_colors ()
 		wave->set_clip_color (clip);
 		wave->set_zero_color (zero);
 	}
-}
-
-Gtk::Widget&
-AudioClipEditor::viewport()
-{
-	return _viewport;
 }
 
 Gtk::Widget&
@@ -561,7 +576,7 @@ AudioClipEditor::canvas_enter_leave (GdkEventCrossing* ev)
 	switch (ev->type) {
 	case GDK_ENTER_NOTIFY:
 		if (ev->detail != GDK_NOTIFY_INFERIOR) {
-			canvas.grab_focus ();
+			_canvas.grab_focus ();
 			// ActionManager::set_sensitive (_midi_actions, true);
 			within_track_canvas = true;
 		}
@@ -570,8 +585,8 @@ AudioClipEditor::canvas_enter_leave (GdkEventCrossing* ev)
 		if (ev->detail != GDK_NOTIFY_INFERIOR) {
 			// ActionManager::set_sensitive (_midi_actions, false);
 			within_track_canvas = false;
-			ARDOUR_UI::instance()->reset_focus (&_viewport);
-			gdk_window_set_cursor (_viewport.get_window()->gobj(), nullptr);
+			ARDOUR_UI::instance()->reset_focus (&_canvas_viewport);
+			gdk_window_set_cursor (_canvas_viewport.get_window()->gobj(), nullptr);
 		}
 	default:
 		break;
@@ -579,3 +594,86 @@ AudioClipEditor::canvas_enter_leave (GdkEventCrossing* ev)
 	return false;
 }
 
+void
+AudioClipEditor::begin_write ()
+{
+}
+
+void
+AudioClipEditor::end_write ()
+{
+}
+
+void
+AudioClipEditor::show_count_in (std::string const &)
+{
+}
+
+void
+AudioClipEditor::hide_count_in ()
+{
+}
+
+void
+AudioClipEditor::maybe_update ()
+{
+	ARDOUR::TriggerPtr playing_trigger;
+
+	if (ref.trigger()) {
+
+		/* Trigger editor */
+
+		playing_trigger = ref.box()->currently_playing ();
+
+		if (!playing_trigger) {
+
+			if (_drags->active() || !_region || !_track || !_track->triggerbox()) {
+				return;
+			}
+
+			if (_track->triggerbox()->record_enabled() == Recording) {
+
+				_playhead_cursor->set_position (data_capture_duration);
+			}
+
+		} else {
+			if (playing_trigger->active ()) {
+				if (playing_trigger->the_region()) {
+					_playhead_cursor->set_position (playing_trigger->current_pos().samples() + playing_trigger->the_region()->start().samples());
+				}
+			} else {
+				_playhead_cursor->set_position (0);
+			}
+		}
+#if 0
+	} else if (view->midi_region()) {
+
+		/* Timeline region editor */
+
+		if (!_session) {
+			return;
+		}
+
+		samplepos_t pos = _session->transport_sample();
+		samplepos_t spos = view->midi_region()->source_position().samples();
+		if (pos < spos) {
+			_playhead_cursor->set_position (0);
+		} else {
+			_playhead_cursor->set_position (pos - spos);
+		}
+#endif
+	} else {
+		_playhead_cursor->set_position (0);
+	}
+
+	if (_follow_playhead) {
+		reset_x_origin_to_follow_playhead ();
+	}
+}
+
+void
+AudioClipEditor::unset (bool trigger_too)
+{
+	drop_waves ();
+	CueEditor::unset (trigger_too);
+}

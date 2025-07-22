@@ -519,7 +519,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	Glib::RefPtr<Gtk::ActionGroup> velocity_actions;
 	Glib::RefPtr<Gtk::ActionGroup> zoom_actions;
 
-	void load_shared_bindings ();
+	virtual void load_shared_bindings ();
 
 	Editing::GridType  pre_internal_grid_type;
 	Editing::SnapMode  pre_internal_snap_mode;

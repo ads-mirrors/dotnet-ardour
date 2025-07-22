@@ -118,7 +118,6 @@ private:
 	Gtk::EventBox             _no_strips;
 	Gtk::Alignment            _cue_area_frame;
 	Gtk::VBox                 _cue_area_box;
-	Gtk::HBox                 _parameter_box;
 	Gtk::VBox                 _sidebar_vbox;
 	ArdourWidgets::MetaButton _sidebar_pager1;
 	ArdourWidgets::MetaButton _sidebar_pager2;
@@ -127,7 +126,7 @@ private:
 	TriggerSourceList         _trigger_source_list;
 	TriggerRegionList         _trigger_region_list;
 	TriggerRouteList          _trigger_route_list;
-	Gtk::Table                 table;
+	Gtk::HBox                  hpacker;
 
 	CueBoxWidget       _cue_box;
 	FittedCanvasWidget _master_widget;

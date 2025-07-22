@@ -321,13 +321,17 @@ EditingContext::register_automation_actions (Bindings* automation_bindings, std:
 void
 EditingContext::enable_automation_bindings ()
 {
-	ActionManager::set_sensitive (_automation_actions, true);
+	if (_automation_actions) {
+		ActionManager::set_sensitive (_automation_actions, true);
+	}
 }
 
 void
 EditingContext::disable_automation_bindings ()
 {
-	ActionManager::set_sensitive (_automation_actions, false);
+	if (_automation_actions) {
+		ActionManager::set_sensitive (_automation_actions, false);
+	}
 }
 
 void
@@ -2358,24 +2362,6 @@ EditingContext::set_common_editing_state (XMLNode const & node)
 	}
 	grid_type_selection_done (grid_type);
 
-	GridType draw_length;
-	if (!node.get_property ("draw-length", draw_length)) {
-		draw_length = _draw_length;
-	}
-	draw_length_chosen (draw_length);
-
-	int draw_vel;
-	if (!node.get_property ("draw-velocity", draw_vel)) {
-		draw_vel = _draw_velocity;
-	}
-	draw_velocity_chosen (draw_vel);
-
-	int draw_chan;
-	if (!node.get_property ("draw-channel", draw_chan)) {
-		draw_chan = DRAW_CHAN_AUTO;
-	}
-	draw_channel_chosen (draw_chan);
-
 	SnapMode sm;
 	if (node.get_property ("snap-mode", sm)) {
 		snap_mode_selection_done(sm);
@@ -2420,9 +2406,6 @@ EditingContext::get_common_editing_state (XMLNode& node) const
 	node.set_property ("internal-snap-mode", internal_snap_mode);
 	node.set_property ("pre-internal-grid-type", pre_internal_grid_type);
 	node.set_property ("pre-internal-snap-mode", pre_internal_snap_mode);
-	node.set_property ("draw-length", _draw_length);
-	node.set_property ("draw-velocity", _draw_velocity);
-	node.set_property ("draw-channel", _draw_channel);
 	node.set_property ("left-frame", _leftmost_sample);
 }
 
@@ -2537,10 +2520,6 @@ EditingContext::reset_zoom (samplecnt_t spp)
 
 	pending_visual_change.add (VisualChange::ZoomLevel);
 	pending_visual_change.samples_per_pixel = spp;
-	if (spp == 0.0) {
-		std::cerr << "spp set to zero\n";
-		PBD::stacktrace (std::cerr, 12);
-	}
 	ensure_visual_change_idle_handler ();
 }
 
@@ -3381,10 +3360,12 @@ void
 EditingContext::update_grid ()
 {
 	if (!_session) {
+		std::cerr << editor_name() << " grid has no session\n";
 		return;
 	}
 
 	if (_grid_type == GridTypeNone) {
+		std::cerr << editor_name() << " no grid\n";
 		hide_grid_lines ();
 	} else if (grid_musical()) {
 //		Temporal::TempoMapPoints grid;
@@ -3392,8 +3373,10 @@ EditingContext::update_grid ()
 //		if (bbt_ruler_scale != bbt_show_many) {
 //			compute_current_bbt_points (grid, _leftmost_sample, _leftmost_sample + current_page_samples());
 //		}
+		std::cerr << editor_name() << " grid should show\n";
 		maybe_draw_grid_lines (time_line_group);
 	} else {
+		std::cerr << editor_name() << " grid should show 2\n";
 		maybe_draw_grid_lines (time_line_group);
 	}
 }

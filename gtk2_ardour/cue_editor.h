@@ -20,6 +20,8 @@
 
 #include "pbd/history_owner.h"
 
+#include "canvas/canvas.h"
+
 #include "widgets/ardour_button.h"
 #include "widgets/eventboxext.h"
 
@@ -36,8 +38,14 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	CueEditor (std::string const & name, bool with_transport_controls);
 	~CueEditor ();
 
-	virtual Gtk::Widget& viewport() = 0;
 	virtual Gtk::Widget& contents () = 0;
+
+	void session_going_away ();
+
+	ArdourCanvas::Container* get_trackview_group () const { return data_group; }
+	ArdourCanvas::Container* get_noscroll_group() const { return no_scroll_group; }
+	ArdourCanvas::ScrollGroup* get_hscroll_group () const { return h_scroll_group; }
+	ArdourCanvas::ScrollGroup* get_cursor_scroll_group () const { return cursor_scroll_group; }
 
 	void get_regionviews_by_id (PBD::ID const id, RegionSelection & regions) const;
 	StripableTimeAxisView* get_stripable_time_axis_by_id (const PBD::ID& id) const;
@@ -66,6 +74,8 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	void abort_reversible_selection_op ();
 	void undo_selection_op ();
 	void redo_selection_op ();
+
+	RegionSelection region_selection();
 
 	PBD::HistoryOwner& history() { return *this; }
 	void history_changed ();
@@ -96,6 +106,7 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	Editing::MouseMode current_mouse_mode () const;
 	/** cue editors are *always* used for internal editing */
 	bool internal_editing() const { return true; }
+	void mouse_mode_toggled (Editing::MouseMode);
 
 	Gdk::Cursor* get_canvas_cursor () const;
 	MouseCursors const* cursors () const {
@@ -112,14 +123,41 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	bool canvas_pre_event (GdkEvent*);
 	void catch_pending_show_region ();
 
+	std::pair<Temporal::timepos_t,Temporal::timepos_t> max_zoom_extent() const;
+
+	void full_zoom_clicked();
+	void zoom_to_show (Temporal::timecnt_t const &);
+
+	bool ruler_event (GdkEvent*);
+
+	virtual void set_show_source (bool);
+	virtual void set_region (std::shared_ptr<ARDOUR::Region>);
+	virtual void set_track (std::shared_ptr<ARDOUR::Track>);
+	virtual void set_trigger (ARDOUR::TriggerReference&);
+
+	virtual void maybe_update () = 0;
+
+	ArdourCanvas::GtkCanvasViewport* get_canvas_viewport() const;
+	ArdourCanvas::GtkCanvas* get_canvas() const;
+
+	int set_state (const XMLNode&, int version);
+	XMLNode& get_state () const;
+
   protected:
+	ArdourCanvas::GtkCanvasViewport _canvas_viewport;
+	ArdourCanvas::GtkCanvas& _canvas;
 	ARDOUR::TriggerReference ref;
-	std::shared_ptr<ARDOUR::MidiTrack> _track;
+	std::shared_ptr<ARDOUR::Region> _region;
+	std::shared_ptr<ARDOUR::Track>  _track;
 	bool with_transport_controls;
+	bool show_source;
 	ArdourWidgets::EventBoxExt _contents;
 	Gtk::VBox                  _toolbox;
 	Gtk::HBox                   button_bar;
 	Gtk::HScrollbar*           _canvas_hscrollbar;
+
+	void load_bindings ();
+	void register_actions ();
 
 	/* The group containing all other groups that are scrolled vertically
 	   and horizontally.
@@ -174,12 +212,14 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	bool zoom_in_allocate;
 
 	void set_recording_length (Temporal::BBT_Offset bars);
-	virtual void set_region (std::shared_ptr<ARDOUR::Region>) = 0;
 
 	bool rec_button_press (GdkEventButton*);
 	void rec_enable_change ();
 	void blink_rec_enable (bool);
 	sigc::connection rec_blink_connection;
+
+	sigc::connection _update_connection;
+	PBD::ScopedConnectionList object_connections;
 
 	void trigger_arm_change ();
 
@@ -192,5 +232,31 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	void start_canvas_autoscroll (bool allow_horiz, bool allow_vert, const ArdourCanvas::Rect& boundary);
 	void visual_changer (const VisualChange&);
 
+	void update_solo_display ();
+
 	std::shared_ptr<ARDOUR::Region> _visible_pending_region;
+
+	void ruler_locate (GdkEventButton*);
+
+	virtual void begin_write () = 0;
+	virtual void end_write () = 0;
+
+	virtual void manage_possible_header (Gtk::Allocation&) {}
+
+	sigc::connection count_in_connection;
+	Temporal::Beats count_in_to;
+
+	void count_in (Temporal::timepos_t, unsigned int);
+	void maybe_set_count_in ();
+	virtual void show_count_in (std::string const &) = 0;
+	virtual void hide_count_in () = 0;
+
+	void data_captured (samplecnt_t);
+	virtual bool idle_data_captured () = 0;
+	std::atomic<int> idle_update_queued;
+	PBD::ScopedConnectionList capture_connections;
+	samplecnt_t data_capture_duration;
+
+	virtual void unset (bool trigger_too);
 };
+

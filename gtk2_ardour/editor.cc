@@ -1229,7 +1229,7 @@ Editor::set_session (Session *t)
 	if (!_pianoroll) {
 		// XXX this should really not happen here
 		_pianoroll = new Pianoroll ("editor pianoroll", true);
-		_pianoroll->viewport().set_size_request (-1, 120);
+		_pianoroll->get_canvas_viewport()->set_size_request (-1, 120);
 	}
 	_pianoroll->set_session (_session);
 

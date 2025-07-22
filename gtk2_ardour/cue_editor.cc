@@ -16,26 +16,37 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "ytkmm/scrollbar.h"
+
 #include "widgets/ardour_icon.h"
 #include "widgets/tooltips.h"
+
+#include "pbd/controllable.h"
 
 #include "ardour/types.h"
 
 #include "canvas/canvas.h"
 
+#include "gtkmm2ext/bindings.h"
+
+#include "ardour_ui.h"
 #include "cue_editor.h"
 #include "editor_drag.h"
 #include "gui_thread.h"
+#include "timers.h"
 #include "ui_config.h"
 
 #include "pbd/i18n.h"
 
 using namespace ARDOUR;
 using namespace ArdourWidgets;
+using namespace Temporal;
 
 CueEditor::CueEditor (std::string const & name, bool with_transport)
 	: EditingContext (name)
 	, HistoryOwner (name)
+	, _canvas_viewport (horizontal_adjustment, vertical_adjustment)
+	, _canvas (*_canvas_viewport.canvas ())
 	, with_transport_controls (with_transport)
 	, length_label (X_("Record:"))
 	, solo_button (S_("Solo|S"))
@@ -43,12 +54,17 @@ CueEditor::CueEditor (std::string const & name, bool with_transport)
 	, timebar_height (15.)
 	, n_timebars (0)
 {
+	_canvas_hscrollbar = manage (new Gtk::HScrollbar (horizontal_adjustment));
+	_canvas_hscrollbar->show ();
+	horizontal_adjustment.signal_value_changed().connect (sigc::mem_fun (*this, &CueEditor::scrolled));
+
 	_history.Changed.connect (history_connection, invalidator (*this), std::bind (&CueEditor::history_changed, this), gui_context());
 	set_zoom_focus (Editing::ZoomFocusLeft);
 }
 
 CueEditor::~CueEditor ()
 {
+	delete own_bindings;
 }
 
 void
@@ -222,13 +238,6 @@ CueEditor::get_canvas_cursor () const
 	return nullptr;
 }
 
-Editing::MouseMode
-CueEditor::current_mouse_mode () const
-{
-	return Editing::MouseContent;
-}
-
-
 std::shared_ptr<Temporal::TempoMap const>
 CueEditor::start_local_tempo_map (std::shared_ptr<Temporal::TempoMap> map)
 {
@@ -399,8 +408,8 @@ CueEditor::build_upper_toolbar ()
 	_toolbox.pack_start (*_toolbar_outer, false, false);
 
 	_contents.add (_toolbox);
-	_contents.signal_unmap().connect ([this]()  {viewport().unmap (); }, false);
-	_contents.signal_map().connect ([this]() { viewport().map (); }, false);
+	_contents.signal_unmap().connect ([this]()  { get_canvas_viewport()->unmap (); }, false);
+	_contents.signal_map().connect ([this]() { get_canvas_viewport()->map (); }, false);
 }
 
 void
@@ -416,65 +425,61 @@ CueEditor::build_zoom_focus_menu ()
 	zoom_focus_selector.set_sizing_texts (zoom_focus_strings);
 }
 
+bool
+CueEditor::bang_button_press (GdkEventButton* ev)
+{
+	if (!ref.trigger()) {
+		return true;
+	}
+
+	ref.trigger()->bang ();
+
+	return true;
+}
 
 bool
 CueEditor::play_button_press (GdkEventButton* ev)
 {
-#warning paul fix lookup region via CueEditor 87
-#if 0
-	if (_session) {
-		_session->request_locate (view->midi_region()->position().samples());
+	if (_session && _region) {
+		_session->request_locate (_region->position().samples());
 		_session->request_roll ();
 	}
-#endif
+
 	return true;
 }
 
 bool
 CueEditor::loop_button_press (GdkEventButton* ev)
 {
-#warning paul fix region lookup via CueEditor 1
-#if 0
-	if (!view) {
-		return true;
-	}
-	if (!view->midi_region()) {
+	if (!_region) {
 		return true;
 	}
 
 	if (_session->get_play_loop()) {
 		_session->request_play_loop (false);
 	} else {
-		set_loop_range (view->midi_region()->position(), view->midi_region()->end(), _("loop region"));
+		set_loop_range (_region->position(), _region->end(), _("loop region"));
 		_session->request_play_loop (true);
 	}
-#endif
+
 	return true;
 }
 
 bool
 CueEditor::solo_button_press (GdkEventButton* ev)
 {
-#warning paul fix region lookup via CueEditor 2
-#if 0
-	if (!view) {
+	if (!_track) {
 		return true;
 	}
 
-	if (!view->midi_track()) {
-		return true;
-	}
+	_track->solo_control()->set_value (!_track->solo_control()->get_value(), PBD::Controllable::NoGroup);
 
-	view->midi_track()->solo_control()->set_value (!view->midi_track()->solo_control()->get_value(), Controllable::NoGroup);
-#endif
 	return true;
 }
 
 bool
 CueEditor::rec_button_press (GdkEventButton* ev)
 {
-#warning paul fix trigger lookup via CueEditor 1
-#if 0
 	if (ev->button != 1) {
 		return false;
 	}
@@ -490,7 +495,7 @@ CueEditor::rec_button_press (GdkEventButton* ev)
 	} else {
 		trigger->arm (rec_length);
 	}
-#endif
+
 	return true;
 }
 
@@ -507,28 +512,23 @@ CueEditor::blink_rec_enable (bool onoff)
 void
 CueEditor::trigger_arm_change ()
 {
-#warning paul fix trigger lookup via CueEditor 1
-#if 0
 	if (!ref.trigger()) {
 		return;
 	}
 
 	if (!ref.trigger()->armed()) {
-		view->end_write ();
+		end_write ();
 	} else {
 		maybe_set_count_in ();
 	}
-#endif
+
 	rec_enable_change ();
 }
 
 void
 CueEditor::rec_enable_change ()
 {
-#warning paul fix trigger lookup via CueEditor 1
-#if 0
 	if (!ref.box()) {
-		std::cerr << "no box!\n";
 		return;
 	}
 
@@ -541,9 +541,7 @@ CueEditor::rec_enable_change ()
 	case Recording:
 		rec_enable_button.set_active_state (Gtkmm2ext::ExplicitActive);
 		rec_blink_connection.disconnect ();
-		if (view) {
-			view->begin_write ();
-		}
+		begin_write ();
 		break;
 	case Enabled:
 		if (!UIConfiguration::instance().get_no_strobe() && ref.trigger()->armed()) {
@@ -557,27 +555,12 @@ CueEditor::rec_enable_change ()
 		rec_enable_button.set_active_state (Gtkmm2ext::Off);
 		break;
 	}
-#endif
 }
 
 void
 CueEditor::set_recording_length (Temporal::BBT_Offset dur)
 {
 	rec_length = dur;
-}
-
-bool
-CueEditor::bang_button_press (GdkEventButton* ev)
-{
-#warning paul fix trigger look from CueEditor 93
-#if 0
-	if (!ref.trigger()) {
-		return true;
-	}
-
-	ref.trigger()->bang ();
-#endif
-	return true;
 }
 
 void
@@ -660,16 +643,8 @@ CueEditor::maybe_autoscroll (bool allow_horiz, bool allow_vert, bool from_header
 
 	if (allow_horiz && (alloc.get_width() > 20)) {
 
-#warning paul fix use of PRH in CueEditor context
-#if 0
-		if (prh) {
-			double w, h;
-			prh->size_request (w, h);
+		manage_possible_header (alloc);
 
-			alloc.set_width (alloc.get_width() - w);
-			alloc.set_x (alloc.get_x() + w);
-		}
-#endif
 		/* the effective width of the autoscroll boundary so
 		   that we start scrolling before we hit the edge.
 
@@ -704,7 +679,7 @@ CueEditor::autoscroll_canvas ()
 	Gdk::ModifierType mask;
 	sampleoffset_t dx = 0;
 	bool no_stop = false;
-	Gtk::Window* toplevel = dynamic_cast<Gtk::Window*> (viewport().get_toplevel());
+	Gtk::Window* toplevel = dynamic_cast<Gtk::Window*> (_canvas_viewport.get_toplevel());
 
 	if (!toplevel) {
 		return false;
@@ -969,7 +944,374 @@ void
 CueEditor::catch_pending_show_region ()
 {
 	if (_visible_pending_region) {
-		set_region (_visible_pending_region);
+		std::shared_ptr<Region> r (_visible_pending_region);
+		_visible_pending_region.reset ();
+		set_region (r);
+	}
+}
+
+Editing::MouseMode
+CueEditor::current_mouse_mode () const
+{
+	return mouse_mode;
+}
+
+RegionSelection
+CueEditor::region_selection()
+{
+	RegionSelection rs;
+	/* there is never any region-level selection in a pianoroll */
+	return rs;
+}
+
+void
+CueEditor::mouse_mode_toggled (Editing::MouseMode m)
+{
+	Glib::RefPtr<Gtk::Action>       act  = get_mouse_mode_action (m);
+	Glib::RefPtr<Gtk::ToggleAction> tact = Glib::RefPtr<Gtk::ToggleAction>::cast_dynamic (act);
+
+	if (!tact->get_active()) {
+		/* this was just the notification that the old mode has been
+		 * left. we'll get called again with the new mode active in a
+		 * jiffy.
+		 */
+		return;
+	}
+
+	mouse_mode = m;
+
+	/* this should generate a new enter event which will
+	   trigger the appropriate cursor.
+	*/
+
+	if (get_canvas()) {
+		get_canvas()->re_enter ();
+	}
+}
+
+std::pair<Temporal::timepos_t,Temporal::timepos_t>
+CueEditor::max_zoom_extent() const
+{
+	if (_region) {
+
+		Temporal::Beats len;
+
+		if (show_source) {
+			len = _region->source()->length().beats();
+		} else {
+			len = _region->length().beats();
+		}
+
+		if (len != Temporal::Beats()) {
+			return std::make_pair (Temporal::timepos_t (Temporal::Beats()), Temporal::timepos_t (len));
+		}
+	}
+
+	/* this needs to match the default empty region length used in ::make_a_region() */
+	return std::make_pair (Temporal::timepos_t (Temporal::Beats()), Temporal::timepos_t (Temporal::Beats (32, 0)));
+}
+
+void
+CueEditor::zoom_to_show (Temporal::timecnt_t const & duration)
+{
+	if (!_track_canvas_width) {
+		zoom_in_allocate = true;
+		return;
+	}
+
+	reset_zoom ((samplecnt_t) floor (duration.samples() / _track_canvas_width));
+}
+
+void
+CueEditor::full_zoom_clicked()
+{
+	/* XXXX NEED LOCAL TEMPO MAP */
+
+	std::pair<Temporal::timepos_t,Temporal::timepos_t> dur (max_zoom_extent());
+	samplecnt_t s = dur.second.samples() - dur.first.samples();
+	reposition_and_zoom (0,  (s / (double) _visible_canvas_width));
+}
+
+void
+CueEditor::set_show_source (bool yn)
+{
+	show_source = yn;
+}
+
+void
+CueEditor::update_solo_display ()
+{
+	if (_track->solo_control()->get_value()) {
+		solo_button.set_active_state (Gtkmm2ext::ExplicitActive);
+	} else {
+		solo_button.set_active_state (Gtkmm2ext::Off);
+	}
+}
+
+void
+CueEditor::set_track (std::shared_ptr<Track> t)
+{
+	_track = t;
+	_track->solo_control()->Changed.connect (object_connections, invalidator (*this), std::bind (&CueEditor::update_solo_display, this), gui_context());
+	update_solo_display ();
+}
+
+void
+CueEditor::set_region (std::shared_ptr<Region> r)
+{
+	if (r == _region) {
+		return;
+	}
+
+	_region = r;
+
+	if (!get_canvas()->is_visible()) {
+		_visible_pending_region = r;
+	} else {
 		_visible_pending_region.reset ();
 	}
+}
+
+void
+CueEditor::set_trigger (TriggerReference& tref)
+{
+	if (tref == ref) {
+		return;
+	}
+
+	_update_connection.disconnect ();
+	object_connections.drop_connections ();
+
+	ref = tref;
+
+	Stripable* st = dynamic_cast<Stripable*> (ref.box()->owner());
+	assert (st);
+
+	set_track (std::dynamic_pointer_cast<Track> (st->shared_from_this()));
+	set_region (ref.trigger()->the_region());
+
+	_update_connection = Timers::rapid_connect (sigc::mem_fun (*this, &CueEditor::maybe_update));
+}
+
+void
+CueEditor::ruler_locate (GdkEventButton* ev)
+{
+	if (!_session) {
+		return;
+	}
+
+	if (ref.box()) {
+		/* we don't locate when working with triggers */
+		return;
+	}
+
+	if (!_region) {
+		return;
+	}
+
+	samplepos_t sample = pixel_to_sample_from_event (ev->x);
+	sample += _region->source_position().samples();
+	_session->request_locate (sample);
+}
+
+void
+CueEditor::maybe_set_count_in ()
+{
+	if (!ref.box()) {
+		std::cerr << "msci no box\n";
+		return;
+	}
+
+	if (ref.box()->record_enabled() == Disabled) {
+		std::cerr << "msci RE\n";
+		return;
+	}
+
+	count_in_connection.disconnect ();
+
+	Temporal::TempoMap::SharedPtr tmap (Temporal::TempoMap::use());
+	bool valid;
+	count_in_to = ref.box()->start_time (valid);
+
+	if (!valid) {
+		std::cerr << "no start time\n";
+		return;
+	}
+
+	samplepos_t audible (_session->audible_sample());
+	Temporal::Beats const & a_q (tmap->quarters_at_sample (audible));
+
+	if ((count_in_to - a_q).get_beats() == 0) {
+		std::cerr << "not enough time\n";
+		return;
+	}
+
+	count_in_connection = ARDOUR_UI::Clock.connect (sigc::bind (sigc::mem_fun (*this, &CueEditor::count_in),  ARDOUR_UI::clock_signal_interval()));
+	std::cerr << "count in started" << std::endl;
+}
+
+void
+CueEditor::count_in (Temporal::timepos_t audible, unsigned int clock_interval_msecs)
+{
+	if (!_session) {
+		return;
+	}
+
+	if (!_session->transport_rolling()) {
+		return;
+	}
+
+	TempoMapPoints grid_points;
+	TempoMap::SharedPtr tmap (TempoMap::use());
+	Temporal::Beats audible_beats = tmap->quarters_at_sample (audible.samples());
+	samplepos_t audible_samples = audible.samples ();
+
+	if (audible_beats >= count_in_to) {
+		/* passed the count_in_to time */
+		hide_count_in ();
+		count_in_connection.disconnect ();
+		return;
+	}
+
+	tmap->get_grid (grid_points, samples_to_superclock (audible_samples, _session->sample_rate()), samples_to_superclock ((audible_samples + ((_session->sample_rate() / 1000) * clock_interval_msecs)), _session->sample_rate()));
+
+	if (!grid_points.empty()) {
+
+		/* At least one click in the time between now and the next
+		 * Clock signal
+		 */
+
+		Temporal::Beats current_delta = count_in_to - audible_beats;
+
+		if (current_delta.get_beats() < 1) {
+			hide_count_in ();
+			count_in_connection.disconnect ();
+			return;
+		}
+
+		std::string str (string_compose ("%1", current_delta.get_beats()));
+		std::cerr << str << std::endl;
+		show_count_in (str);
+	}
+}
+
+bool
+CueEditor::ruler_event (GdkEvent* ev)
+{
+	switch (ev->type) {
+	case GDK_BUTTON_RELEASE:
+		if (ev->button.button == 1) {
+			ruler_locate (&ev->button);
+		}
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+void
+CueEditor::data_captured (samplecnt_t total_duration)
+{
+	data_capture_duration = total_duration;
+
+	if (!idle_update_queued.exchange (1)) {
+		Glib::signal_idle().connect (sigc::mem_fun (*this, &CueEditor::idle_data_captured));
+	}
+}
+
+bool
+CueEditor::idle_data_captured ()
+{
+	if (!ref.box()) {
+		return false;
+	}
+
+	switch (ref.box()->record_enabled()) {
+	case Recording:
+		break;
+	default:
+		return false;
+	}
+
+	double where = sample_to_pixel_unrounded (data_capture_duration);
+
+	if (where > _visible_canvas_width * 0.80) {
+		set_samples_per_pixel (samples_per_pixel * 1.5);
+	}
+
+	idle_update_queued.store (0);
+	return false;
+}
+
+void
+CueEditor::unset (bool trigger_too)
+{
+	_history.clear ();
+	history_connection.disconnect();
+	_update_connection.disconnect();
+	object_connections.drop_connections ();
+	rec_blink_connection.disconnect ();
+	count_in_connection.disconnect ();
+	capture_connections.drop_connections ();
+
+	_track.reset ();
+	_region.reset ();
+
+	if (trigger_too) {
+		ref = TriggerReference ();
+	}
+}
+
+void
+CueEditor::session_going_away ()
+{
+	EditingContext::session_going_away ();
+	unset (true);
+}
+
+void
+CueEditor::load_bindings ()
+{
+	load_shared_bindings ();
+	for (auto & b : bindings) {
+		b->associate ();
+	}
+	set_widget_bindings (*get_canvas(), bindings, Gtkmm2ext::ARDOUR_BINDING_KEY);
+}
+
+void
+CueEditor::register_actions ()
+{
+	editor_actions = ActionManager::create_action_group (own_bindings, editor_name());
+	bind_mouse_mode_buttons ();
+}
+
+ArdourCanvas::GtkCanvasViewport*
+CueEditor::get_canvas_viewport() const
+{
+	return const_cast<ArdourCanvas::GtkCanvasViewport*>(&_canvas_viewport);
+}
+
+ArdourCanvas::GtkCanvas*
+CueEditor::get_canvas() const
+{
+	return &_canvas;
+}
+
+
+int
+CueEditor::set_state (XMLNode const & node, int version)
+{
+	set_common_editing_state (node);
+	return 0;
+}
+
+XMLNode&
+CueEditor::get_state () const
+{
+	XMLNode* node (new XMLNode (editor_name()));
+	get_common_editing_state (*node);
+	return *node;
 }
