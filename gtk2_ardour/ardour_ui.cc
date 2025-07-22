@@ -1906,7 +1906,6 @@ ARDOUR_UI::toggle_roll (bool with_abort, bool roll_out_of_bounded_mode)
 			}
 
 		} else {
-			std::cerr << "stip\n";
 			_session->request_stop (with_abort, true);
 		}
 
