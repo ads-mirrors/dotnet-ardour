@@ -27,6 +27,7 @@
 
 #include "editing.h"
 #include "editing_context.h"
+#include "region_ui_settings.h"
 
 namespace Gtk {
 	class HScrollbar;
@@ -258,6 +259,11 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	samplecnt_t data_capture_duration;
 
 	virtual void unset (bool trigger_too);
+
+	RegionUISettings region_ui_settings;
+	void maybe_set_from_rsu ();
+	virtual void set_from_rsu (RegionUISettings&);
+
 	void metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>&, samplepos_t, samplepos_t, gint);
 };
 

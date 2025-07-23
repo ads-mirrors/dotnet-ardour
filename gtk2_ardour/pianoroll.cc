@@ -1415,6 +1415,8 @@ Pianoroll::set_region (std::shared_ptr<ARDOUR::Region> region)
 	bg->display_region (*view);
 
 	_update_connection = Timers::rapid_connect (sigc::mem_fun (*this, &Pianoroll::maybe_update));
+
+	maybe_set_from_rsu ();
 }
 
 bool

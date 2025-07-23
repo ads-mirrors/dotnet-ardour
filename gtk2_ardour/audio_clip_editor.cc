@@ -464,6 +464,8 @@ AudioClipEditor::set_region (std::shared_ptr<Region> region)
 	region_changed (interesting_stuff);
 
 	region->PropertyChanged.connect (state_connection, invalidator (*this), std::bind (&AudioClipEditor::region_changed, this, _1), gui_context ());
+
+	maybe_set_from_rsu ();
 }
 
 void

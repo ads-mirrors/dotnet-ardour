@@ -22,6 +22,7 @@
 #include <string>
 
 #include "temporal/beats.h"
+#include "temporal/bbt_time.h"
 
 #include "editing.h"
 
@@ -32,10 +33,22 @@ struct RegionUISettings
 	RegionUISettings ();
 
 	Editing::GridType grid_type;
-	Temporal::Beats draw_length;
 	double samples_per_pixel;
 	bool   follow_playhead;
 	bool   play_selection;
+	Editing::SnapMode snap_mode;
+	Editing::ZoomFocus zoom_focus;
+	Editing::MouseMode mouse_mode;
+	Temporal::timepos_t x_origin;
+	Temporal::BBT_Offset recording_length;
+
+	/* MIDI specific */
+
+	Temporal::Beats draw_length;
+	int    draw_velocity;
+	int    channel;
+	int    note_min;
+	int    note_max;
 
 	XMLNode& get_state () const;
 	int set_state (XMLNode const & state, int version);

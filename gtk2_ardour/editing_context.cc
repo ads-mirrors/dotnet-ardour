@@ -1424,6 +1424,7 @@ EditingContext::set_follow_playhead (bool yn, bool catch_up)
 			/* catch up */
 			reset_x_origin_to_follow_playhead ();
 		}
+		std::cerr << editor_name() << " SFP instant save\n";
 		instant_save ();
 	}
 }
@@ -3336,20 +3337,26 @@ EditingContext::maybe_draw_grid_lines (ArdourCanvas::Container* group)
 
 	if (!grid_lines) {
 		grid_lines = new GridLines (*this, group, ArdourCanvas::LineSet::Vertical);
+		std::cerr << "grid lines created\n";
+	} else {
+		std::cerr << "grid lines exist\n";
 	}
 
 	grid_marks.clear();
 	samplepos_t rightmost_sample = _leftmost_sample + current_page_samples();
 
 	if (grid_musical()) {
-		 metric_get_bbt (grid_marks, _leftmost_sample, rightmost_sample, 12);
+		std::cerr << "musical grid!\n";
+		metric_get_bbt (grid_marks, _leftmost_sample, rightmost_sample, 12);
 	} else if (_grid_type== GridTypeTimecode) {
-		 metric_get_timecode (grid_marks, _leftmost_sample, rightmost_sample, 12);
+		metric_get_timecode (grid_marks, _leftmost_sample, rightmost_sample, 12);
 	} else if (_grid_type == GridTypeCDFrame) {
 		metric_get_minsec (grid_marks, _leftmost_sample, rightmost_sample, 12);
 	} else if (_grid_type == GridTypeMinSec) {
 		metric_get_minsec (grid_marks, _leftmost_sample, rightmost_sample, 12);
 	}
+
+	std::cerr << "now have " << grid_marks.size() << " grid marks for " << _leftmost_sample << " .. " << rightmost_sample << " ps " << current_page_samples() << " spp " << samples_per_pixel << " for gt " << _grid_type << std::endl;
 
 	grid_lines->draw (grid_marks);
 	grid_lines->show();

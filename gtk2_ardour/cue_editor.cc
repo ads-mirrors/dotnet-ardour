@@ -23,6 +23,8 @@
 
 #include "pbd/controllable.h"
 
+#include "ardour/midi_region.h"
+#include "ardour/smf_source.h"
 #include "ardour/types.h"
 
 #include "canvas/canvas.h"
@@ -136,6 +138,22 @@ CueEditor::get_nudge_distance (Temporal::timepos_t const & pos, Temporal::timecn
 void
 CueEditor::instant_save()
 {
+	if (!_region) {
+		return;
+	}
+
+	/* derived classes should set other fields first, then call parent */
+
+	region_ui_settings.follow_playhead = _follow_playhead;
+	region_ui_settings.samples_per_pixel = samples_per_pixel;
+	region_ui_settings.grid_type = grid_type ();
+
+	std::pair<RegionUISettingsManager::iterator,bool> res (ARDOUR_UI::instance()->region_ui_settings_manager.insert (std::make_pair (_region->id(), region_ui_settings)));
+
+	if (!res.second) {
+		/* region (ID) already present, set contents */
+		res.first->second = region_ui_settings;
+	}
 }
 
 void
@@ -1072,6 +1090,35 @@ CueEditor::set_region (std::shared_ptr<Region> r)
 	} else {
 		_visible_pending_region.reset ();
 	}
+}
+
+void
+CueEditor::maybe_set_from_rsu ()
+{
+	RegionUISettingsManager::iterator rsu = ARDOUR_UI::instance()->region_ui_settings_manager.find (_region->id());
+	if (rsu != ARDOUR_UI::instance()->region_ui_settings_manager.end()) {
+		set_from_rsu (rsu->second);
+	}
+}
+
+void
+CueEditor::set_from_rsu (RegionUISettings& rsu)
+{
+	Glib::RefPtr<Gtk::RadioAction> ract = grid_type_action (rsu.grid_type);
+	assert (ract);
+	ract->set_active (true);
+
+	Glib::RefPtr<Gtk::ToggleAction> tact = Glib::RefPtr<Gtk::ToggleAction>::cast_dynamic (ActionManager::get_action ((editor_name() + X_("Editing")).c_str(), X_("toggle-follow-playhead")));
+	assert (tact);
+	tact->set_active (rsu.follow_playhead);
+
+	/* XXXX play selection */
+
+	set_recording_length (rsu.recording_length);
+	set_snap_mode (rsu.snap_mode);
+	set_zoom_focus (rsu.zoom_focus);
+	reposition_and_zoom (rsu.x_origin.samples(), rsu.samples_per_pixel);
+	set_recording_length (rsu.recording_length);
 }
 
 void
