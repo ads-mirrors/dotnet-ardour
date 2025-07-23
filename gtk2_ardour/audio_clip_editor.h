@@ -117,10 +117,6 @@ public:
 	void select_all_within (Temporal::timepos_t const &, Temporal::timepos_t const &, double, double, std::list<SelectableOwner*> const &, ARDOUR::SelectionOperation, bool) {}
 	void get_per_region_note_selection (std::list<std::pair<PBD::ID, std::set<std::shared_ptr<Evoral::Note<Temporal::Beats> > > > >&) const {}
 	void get_regionviews_by_id (PBD::ID const id, RegionSelection & regions) const {}
-	void maybe_autoscroll (bool, bool, bool from_headers) {};
-	void stop_canvas_autoscroll () {}
-	void redisplay_grid (bool immediate_redraw) {};
-	void instant_save() {};
 
 	void point_selection_changed () {}
 	void delete_ () {}
