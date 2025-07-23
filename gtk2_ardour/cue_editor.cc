@@ -1063,6 +1063,8 @@ CueEditor::set_region (std::shared_ptr<Region> r)
 		return;
 	}
 
+	unset (false);
+
 	_region = r;
 
 	if (!get_canvas()->is_visible()) {

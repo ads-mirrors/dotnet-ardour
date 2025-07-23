@@ -1362,9 +1362,7 @@ Pianoroll::set_region (std::shared_ptr<ARDOUR::Region> region)
 
 	std::shared_ptr<MidiRegion> r (std::dynamic_pointer_cast<ARDOUR::MidiRegion> (region));
 
-	unset (false);
-
-	if (!r) {
+	if (!r || !region) {
 		return;
 	}
 
