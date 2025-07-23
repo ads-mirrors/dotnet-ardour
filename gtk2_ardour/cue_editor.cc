@@ -1315,3 +1315,355 @@ CueEditor::get_state () const
 	get_common_editing_state (*node);
 	return *node;
 }
+
+static void
+edit_last_mark_label (std::vector<ArdourCanvas::Ruler::Mark>& marks, const std::string& newlabel)
+{
+	ArdourCanvas::Ruler::Mark copy = marks.back();
+	copy.label = newlabel;
+	marks.pop_back ();
+	marks.push_back (copy);
+}
+
+void
+CueEditor::metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>& marks, samplepos_t leftmost, samplepos_t rightmost, gint /*maxchars*/)
+{
+	if (!_session) {
+		return;
+	}
+
+	bool provided = false;
+	std::shared_ptr<Temporal::TempoMap> tmap;
+	std::shared_ptr<MidiRegion> mr = std::dynamic_pointer_cast<MidiRegion> (_region);
+
+	if (mr) {
+		std::shared_ptr<SMFSource> smf (std::dynamic_pointer_cast<SMFSource> (mr->midi_source()));
+
+		if (smf) {
+			tmap = smf->tempo_map (provided);
+		}
+	}
+
+	if (!provided) {
+		tmap.reset (new Temporal::TempoMap (Temporal::Tempo (120, 4), Temporal::Meter (4, 4)));
+	}
+
+	EditingContext::TempoMapScope tms (*this, tmap);
+	Temporal::TempoMapPoints::const_iterator i;
+
+	char buf[64];
+	Temporal::BBT_Time next_beat;
+	double bbt_position_of_helper;
+	bool helper_active = false;
+	ArdourCanvas::Ruler::Mark mark;
+	const samplecnt_t sr (_session->sample_rate());
+
+	Temporal::TempoMapPoints grid;
+	grid.reserve (4096);
+
+	/* prevent negative values of leftmost from creeping into tempomap
+	 */
+
+	const Beats left = tmap->quarters_at_sample (leftmost).round_down_to_beat();
+	const Beats lower_beat = (left < Beats() ? Beats() : left);
+
+	using std::max;
+
+	switch (bbt_ruler_scale) {
+
+	case bbt_show_quarters:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 1);
+		break;
+	case bbt_show_eighths:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 2);
+		break;
+	case bbt_show_sixteenths:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 4);
+		break;
+	case bbt_show_thirtyseconds:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 8);
+		break;
+	case bbt_show_sixtyfourths:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 16);
+		break;
+	case bbt_show_onetwentyeighths:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 0, 32);
+		break;
+
+	case bbt_show_1:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 1);
+		break;
+
+	case bbt_show_4:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 4);
+		break;
+
+	case bbt_show_16:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 16);
+		break;
+
+	case bbt_show_64:
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 64);
+		break;
+
+	default:
+		/* bbt_show_many */
+		tmap->get_grid (grid, max (tmap->superclock_at (lower_beat), (superclock_t) 0), samples_to_superclock (rightmost, sr), 128);
+		break;
+	}
+
+#if 0 // DEBUG GRID
+	for (auto const& g : grid) {
+		std::cout << "Grid " << g.time() <<  " Beats: " << g.beats() << " BBT: " << g.bbt() << " sample: " << g.sample(_session->nominal_sample_rate ()) << "\n";
+	}
+#endif
+
+	if (distance (grid.begin(), grid.end()) == 0) {
+		return;
+	}
+
+	/* we can accent certain lines depending on the user's Grid choice */
+	/* for example, even in a 4/4 meter we can draw a grid with triplet-feel */
+	/* and in this case you will want the accents on '3s' not '2s' */
+	uint32_t bbt_divisor = 2;
+
+	using namespace Editing;
+
+	switch (_grid_type) {
+	case GridTypeBeatDiv3:
+		bbt_divisor = 3;
+		break;
+	case GridTypeBeatDiv5:
+		bbt_divisor = 5;
+		break;
+	case GridTypeBeatDiv6:
+		bbt_divisor = 3;
+		break;
+	case GridTypeBeatDiv7:
+		bbt_divisor = 7;
+		break;
+	case GridTypeBeatDiv10:
+		bbt_divisor = 5;
+		break;
+	case GridTypeBeatDiv12:
+		bbt_divisor = 3;
+		break;
+	case GridTypeBeatDiv14:
+		bbt_divisor = 7;
+		break;
+	case GridTypeBeatDiv16:
+		break;
+	case GridTypeBeatDiv20:
+		bbt_divisor = 5;
+		break;
+	case GridTypeBeatDiv24:
+		bbt_divisor = 6;
+		break;
+	case GridTypeBeatDiv28:
+		bbt_divisor = 7;
+		break;
+	case GridTypeBeatDiv32:
+		break;
+	default:
+		bbt_divisor = 2;
+		break;
+	}
+
+	uint32_t bbt_beat_subdivision = 1;
+	switch (bbt_ruler_scale) {
+	case bbt_show_quarters:
+		bbt_beat_subdivision = 1;
+		break;
+	case bbt_show_eighths:
+		bbt_beat_subdivision = 1;
+		break;
+	case bbt_show_sixteenths:
+		bbt_beat_subdivision = 2;
+		break;
+	case bbt_show_thirtyseconds:
+		bbt_beat_subdivision = 4;
+		break;
+	case bbt_show_sixtyfourths:
+		bbt_beat_subdivision = 8;
+		break;
+	case bbt_show_onetwentyeighths:
+		bbt_beat_subdivision = 16;
+		break;
+	default:
+		bbt_beat_subdivision = 1;
+		break;
+	}
+
+	bbt_beat_subdivision *= bbt_divisor;
+
+	switch (bbt_ruler_scale) {
+
+	case bbt_show_many:
+		snprintf (buf, sizeof(buf), "cannot handle %" PRIu32 " bars", bbt_bars);
+		mark.style = ArdourCanvas::Ruler::Mark::Major;
+		mark.label = buf;
+		mark.position = leftmost;
+		marks.push_back (mark);
+		break;
+
+	case bbt_show_64:
+			for (i = grid.begin(); i != grid.end(); i++) {
+				BBT_Time bbt ((*i).bbt());
+				if (bbt.is_bar()) {
+					if (bbt.bars % 64 == 1) {
+						if (bbt.bars % 256 == 1) {
+							snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+							mark.style = ArdourCanvas::Ruler::Mark::Major;
+						} else {
+							buf[0] = '\0';
+							if (bbt.bars % 256 == 129)  {
+								mark.style = ArdourCanvas::Ruler::Mark::Minor;
+							} else {
+								mark.style = ArdourCanvas::Ruler::Mark::Micro;
+							}
+						}
+						mark.label = buf;
+						mark.position = (*i).sample (sr);
+						marks.push_back (mark);
+					}
+				}
+			}
+			break;
+
+	case bbt_show_16:
+		for (i = grid.begin(); i != grid.end(); i++) {
+			BBT_Time bbt ((*i).bbt());
+			if (bbt.is_bar()) {
+			  if (bbt.bars % 16 == 1) {
+				if (bbt.bars % 64 == 1) {
+					snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+					mark.style = ArdourCanvas::Ruler::Mark::Major;
+				} else {
+					buf[0] = '\0';
+					if (bbt.bars % 64 == 33)  {
+						mark.style = ArdourCanvas::Ruler::Mark::Minor;
+					} else {
+						mark.style = ArdourCanvas::Ruler::Mark::Micro;
+					}
+				}
+				mark.label = buf;
+				mark.position = (*i).sample(sr);
+				marks.push_back (mark);
+			  }
+			}
+		}
+	  break;
+
+	case bbt_show_4:
+		for (i = grid.begin(); i != grid.end(); ++i) {
+			BBT_Time bbt ((*i).bbt());
+			if (bbt.is_bar()) {
+				if (bbt.bars % 4 == 1) {
+					if (bbt.bars % 16 == 1) {
+						snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+						mark.style = ArdourCanvas::Ruler::Mark::Major;
+				} else {
+						buf[0] = '\0';
+						mark.style = ArdourCanvas::Ruler::Mark::Minor;
+					}
+					mark.label = buf;
+					mark.position = (*i).sample (sr);
+					marks.push_back (mark);
+				}
+			}
+		}
+	  break;
+
+	case bbt_show_1:
+		for (i = grid.begin(); i != grid.end(); ++i) {
+			BBT_Time bbt ((*i).bbt());
+			if (bbt.is_bar()) {
+				snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+				mark.style = ArdourCanvas::Ruler::Mark::Major;
+				mark.label = buf;
+				mark.position = (*i).sample (sr);
+				marks.push_back (mark);
+			}
+		}
+	break;
+
+	case bbt_show_quarters:
+
+		mark.label = "";
+		mark.position = leftmost;
+		mark.style = ArdourCanvas::Ruler::Mark::Micro;
+		marks.push_back (mark);
+
+		for (i = grid.begin(); i != grid.end(); ++i) {
+
+			BBT_Time bbt ((*i).bbt());
+
+			if ((*i).sample (sr) < leftmost && (bbt_bar_helper_on)) {
+				snprintf (buf, sizeof(buf), "<%" PRIu32 "|%" PRIu32, bbt.bars, bbt.beats);
+				edit_last_mark_label (marks, buf);
+			} else {
+
+				if (bbt.is_bar()) {
+					mark.style = ArdourCanvas::Ruler::Mark::Major;
+					snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+				} else if ((bbt.beats % 2) == 1) {
+					mark.style = ArdourCanvas::Ruler::Mark::Minor;
+					buf[0] = '\0';
+				} else {
+					mark.style = ArdourCanvas::Ruler::Mark::Micro;
+					buf[0] = '\0';
+				}
+				mark.label = buf;
+				mark.position = (*i).sample (sr);
+				marks.push_back (mark);
+			}
+		}
+		break;
+
+	case bbt_show_eighths:
+	case bbt_show_sixteenths:
+	case bbt_show_thirtyseconds:
+	case bbt_show_sixtyfourths:
+	case bbt_show_onetwentyeighths:
+
+		bbt_position_of_helper = leftmost + (3 * get_current_zoom ());
+
+		mark.label = "";
+		mark.position = leftmost;
+		mark.style = ArdourCanvas::Ruler::Mark::Micro;
+		marks.push_back (mark);
+
+		for (i = grid.begin(); i != grid.end(); ++i) {
+
+			BBT_Time bbt ((*i).bbt());
+
+			if ((*i).sample (sr) < leftmost && (bbt_bar_helper_on)) {
+				snprintf (buf, sizeof(buf), "<%" PRIu32 "|%" PRIu32, bbt.bars, bbt.beats);
+				edit_last_mark_label (marks, buf);
+				helper_active = true;
+			} else {
+
+				if (bbt.is_bar()) {
+					mark.style = ArdourCanvas::Ruler::Mark::Major;
+					snprintf (buf, sizeof(buf), "%" PRIu32, bbt.bars);
+				} else if (bbt.ticks == 0) {
+					mark.style = ArdourCanvas::Ruler::Mark::Minor;
+					snprintf (buf, sizeof(buf), "%" PRIu32, bbt.beats);
+				} else {
+					mark.style = ArdourCanvas::Ruler::Mark::Micro;
+					buf[0] = '\0';
+				}
+
+				if (((*i).sample(sr) < bbt_position_of_helper) && helper_active) {
+					buf[0] = '\0';
+				}
+				mark.label =  buf;
+				mark.position = (*i).sample (sr);
+				marks.push_back (mark);
+			}
+		}
+
+		break;
+	}
+}
+

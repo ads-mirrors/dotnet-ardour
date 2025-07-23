@@ -258,5 +258,6 @@ class CueEditor : public EditingContext, public PBD::HistoryOwner
 	samplecnt_t data_capture_duration;
 
 	virtual void unset (bool trigger_too);
+	void metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>&, samplepos_t, samplepos_t, gint);
 };
 

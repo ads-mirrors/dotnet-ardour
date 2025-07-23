@@ -180,8 +180,6 @@ class Pianoroll : public CueEditor
 
 	bool canvas_enter_leave (GdkEventCrossing* ev);
 
-	void metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>&, samplepos_t, samplepos_t, gint);
-
 	class BBTMetric : public ArdourCanvas::Ruler::Metric
 	{
 	  public:
