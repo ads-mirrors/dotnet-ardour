@@ -2265,8 +2265,7 @@ ARDOUR_UI::save_template_dialog_response (int response, SaveTemplateDialog* d)
 
 			if (overwrite) {
 				_session->save_template (name, desc, true);
-			}
-			else {
+			}  else {
 				d->show ();
 				return;
 			}
