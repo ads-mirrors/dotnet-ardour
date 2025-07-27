@@ -147,7 +147,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	void toggle_follow_playhead ();
 
 	/** @return true if the editor is following the playhead */
-	bool follow_playhead () const { return _follow_playhead; }
+	bool follow_playhead () const;
 
 	Temporal::timepos_t get_preferred_edit_position (Editing::EditIgnoreOption eio = Editing::EDIT_IGNORE_NONE,
 	                                                 bool use_context_click = false,
@@ -603,7 +603,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	EditorCursor* _playhead_cursor;
 	EditorCursor* _snapped_cursor;
 
-	bool _follow_playhead;
+	Glib::RefPtr<Gtk::ToggleAction> follow_playhead_action;
 
 	/* selection process */
 
@@ -821,8 +821,8 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	/* protected helper functions to help with registering actions */
 
 	static Glib::RefPtr<Gtk::Action> reg_sens (Glib::RefPtr<Gtk::ActionGroup> group, char const* name, char const* label, sigc::slot<void> slot);
-	static void toggle_reg_sens (Glib::RefPtr<Gtk::ActionGroup> group, char const* name, char const* label, sigc::slot<void> slot);
-	static void radio_reg_sens (Glib::RefPtr<Gtk::ActionGroup> action_group, Gtk::RadioAction::Group& radio_group, char const* name, char const* label, sigc::slot<void> slot);
+	static Glib::RefPtr<Gtk::ToggleAction> toggle_reg_sens (Glib::RefPtr<Gtk::ActionGroup> group, char const* name, char const* label, sigc::slot<void> slot);
+	static Glib::RefPtr<Gtk::RadioAction> radio_reg_sens (Glib::RefPtr<Gtk::ActionGroup> action_group, Gtk::RadioAction::Group& radio_group, char const* name, char const* label, sigc::slot<void> slot);
 
 	void center_screen_internal (samplepos_t, float);
 

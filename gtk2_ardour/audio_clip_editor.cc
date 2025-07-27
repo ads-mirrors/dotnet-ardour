@@ -668,7 +668,7 @@ AudioClipEditor::maybe_update ()
 		_playhead_cursor->set_position (0);
 	}
 
-	if (_follow_playhead) {
+	if (follow_playhead()) {
 		reset_x_origin_to_follow_playhead ();
 	}
 }

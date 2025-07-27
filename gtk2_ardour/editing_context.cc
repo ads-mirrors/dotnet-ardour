@@ -131,7 +131,7 @@ EditingContext::EditingContext (std::string const & name)
 	, _leftmost_sample (0)
 	, _playhead_cursor (nullptr)
 	, _snapped_cursor (nullptr)
-	, _follow_playhead (false)
+	, follow_playhead_action (nullptr)
 	, selection (new Selection (this, true))
 	, cut_buffer (new Selection (this, false))
 	, _selection_memento (new SelectionMemento())
@@ -342,7 +342,7 @@ EditingContext::register_common_actions (Bindings* common_bindings, std::string 
 	reg_sens (_common_actions, "temporal-zoom-out", _("Zoom Out"), sigc::bind (sigc::mem_fun (*this, &EditingContext::temporal_zoom_step), true));
 	reg_sens (_common_actions, "temporal-zoom-in", _("Zoom In"), sigc::bind (sigc::mem_fun (*this, &EditingContext::temporal_zoom_step), false));
 
-	toggle_reg_sens (_common_actions, "toggle-follow-playhead", _("Follow Playhead"), (sigc::mem_fun(*this, &EditingContext::toggle_follow_playhead)));
+	follow_playhead_action = toggle_reg_sens (_common_actions, "toggle-follow-playhead", _("Follow Playhead"), (sigc::mem_fun(*this, &EditingContext::toggle_follow_playhead)));
 
 	undo_action = reg_sens (_common_actions, "undo", S_("Command|Undo"), sigc::bind (sigc::mem_fun (*this, &EditingContext::undo), 1U));
 	redo_action = reg_sens (_common_actions, "redo", _("Redo"), sigc::bind (sigc::mem_fun (*this, &EditingContext::redo), 1U));
@@ -1419,8 +1419,10 @@ EditingContext::toggle_follow_playhead ()
 void
 EditingContext::set_follow_playhead (bool yn, bool catch_up)
 {
-	if (_follow_playhead != yn) {
-		if ((_follow_playhead = yn) == true && catch_up) {
+	assert (follow_playhead_action);
+	if (follow_playhead() != yn) {
+		follow_playhead_action->set_active (yn);
+		if (yn && catch_up) {
 			/* catch up */
 			reset_x_origin_to_follow_playhead ();
 		}
@@ -2544,18 +2546,20 @@ EditingContext::reg_sens (RefPtr<ActionGroup> group, char const * name, char con
 	return act;
 }
 
-void
+Glib::RefPtr<ToggleAction>
 EditingContext::toggle_reg_sens (RefPtr<ActionGroup> group, char const * name, char const * label, sigc::slot<void> slot)
 {
-	RefPtr<Action> act = ActionManager::register_toggle_action (group, name, label, slot);
+	RefPtr<ToggleAction> act = ActionManager::register_toggle_action (group, name, label, slot);
 	ActionManager::session_sensitive_actions.push_back (act);
+	return act;
 }
 
-void
+Glib::RefPtr<Gtk::RadioAction>
 EditingContext::radio_reg_sens (RefPtr<ActionGroup> action_group, RadioAction::Group& radio_group, char const * name, char const * label, sigc::slot<void> slot)
 {
-	RefPtr<Action> act = ActionManager::register_radio_action (action_group, radio_group, name, label, slot);
+	RefPtr<RadioAction> act = ActionManager::register_radio_action (action_group, radio_group, name, label, slot);
 	ActionManager::session_sensitive_actions.push_back (act);
+	return act;
 }
 
 void
@@ -3513,4 +3517,14 @@ EditingContext::center_screen_internal (samplepos_t sample, float page)
 	}
 
 	reset_x_origin (sample);
+}
+
+bool
+EditingContext::follow_playhead() const
+{
+	if (!follow_playhead_action) {
+		return false;
+	}
+
+	return follow_playhead_action->get_active ();
 }

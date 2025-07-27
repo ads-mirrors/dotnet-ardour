@@ -2620,7 +2620,7 @@ Editor::maybe_locate_with_edit_preroll (samplepos_t location)
 	}
 
 	//if follow_playhead is on, keep the playhead on the screen
-	if (_follow_playhead)
+	if (follow_playhead())
 		if (location < _leftmost_sample)
 			location = _leftmost_sample;
 

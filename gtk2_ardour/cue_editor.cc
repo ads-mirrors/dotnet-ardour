@@ -144,7 +144,7 @@ CueEditor::instant_save()
 
 	/* derived classes should set other fields first, then call parent */
 
-	region_ui_settings.follow_playhead = _follow_playhead;
+	region_ui_settings.follow_playhead = follow_playhead();
 	region_ui_settings.samples_per_pixel = samples_per_pixel;
 	region_ui_settings.grid_type = grid_type ();
 

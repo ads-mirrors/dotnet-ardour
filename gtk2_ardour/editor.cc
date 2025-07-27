@@ -1151,7 +1151,7 @@ Editor::map_position_change (samplepos_t sample)
 		return;
 	}
 
-	if (_follow_playhead) {
+	if (follow_playhead()) {
 		center_screen (sample);
 	}
 
@@ -2334,7 +2334,7 @@ Editor::set_state (const XMLNode& node, int version)
 		RefPtr<ToggleAction> tact;
 
 		tact = ActionManager::get_toggle_action ((editor_name () + X_("Editing")).c_str(), X_("toggle-follow-playhead"));
-		yn = _follow_playhead;
+		yn = follow_playhead();
 		if (tact->get_active() != yn) {
 			tact->set_active (yn);
 		}
@@ -2374,7 +2374,7 @@ Editor::get_state () const
 	node->set_property ("y-origin", vertical_adjustment.get_value ());
 
 	node->set_property ("maximised", _maximised);
-	node->set_property ("follow-playhead", _follow_playhead);
+	node->set_property ("follow-playhead", follow_playhead());
 	node->set_property ("stationary-playhead", _stationary_playhead);
 	node->set_property ("mouse-mode", mouse_mode);
 	node->set_property ("join-object-range", smart_mode_action->get_active ());
@@ -4546,7 +4546,7 @@ Editor::located ()
 
 	if (_session) {
 		_playhead_cursor->set_position (_session->audible_sample ());
-		if (_follow_playhead && !_pending_initial_locate) {
+		if (follow_playhead() && !_pending_initial_locate) {
 			reset_x_origin_to_follow_playhead ();
 		}
 		update_section_box ();
@@ -5330,7 +5330,7 @@ Editor::super_rapid_screen_update ()
 		return;
 	}
 
-	if (!_follow_playhead || pending_visual_change.being_handled) {
+	if (!follow_playhead() || pending_visual_change.being_handled) {
 		/* We only do this if we aren't already
 		 * handling a visual change (ie if
 		 * pending_visual_change.being_handled is
