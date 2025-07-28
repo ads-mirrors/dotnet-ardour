@@ -379,7 +379,6 @@ Editor::Editor ()
 	, _last_cut_copy_source_track (nullptr)
 	, _region_selection_change_updates_region_list (true)
 	, _following_mixer_selection (false)
-	, _show_touched_automation (false)
 	, _control_point_toggled_on_press (false)
 	, _stepping_axis_view (nullptr)
 	, _main_menu_disabler (nullptr)
@@ -2379,14 +2378,9 @@ Editor::get_state () const
 	node->set_property ("mouse-mode", mouse_mode);
 	node->set_property ("join-object-range", smart_mode_action->get_active ());
 
-	Glib::RefPtr<ToggleAction> tact = ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-mixer"));
-	node->set_property (X_("show-editor-mixer"), tact->get_active());
-
-	tact = ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-list"));
-	node->set_property (X_("show-editor-list"), tact->get_active());
-
-	tact = ActionManager::get_toggle_action (X_("Editor"), X_("show-editor-props"));
-	node->set_property (X_("show-editor-props"), tact->get_active());
+	node->set_property (X_("show-editor-mixer"), show_editor_mixer_action->get_active());
+	node->set_property (X_("show-editor-list"), show_editor_list_action->get_active());
+	node->set_property (X_("show-editor-props"), show_editor_props_action->get_active());
 
 	node->set_property (X_("editor-list-page"), _the_notebook.get_current_page ());
 	node->set_property (X_("editor-list-btn1"), _notebook_tab1.index ());
@@ -2399,7 +2393,7 @@ Editor::get_state () const
 	}
 
 	node->set_property (X_("show-marker-lines"), _show_marker_lines);
-	node->set_property (X_("show-touched-automation"), _show_touched_automation);
+	node->set_property (X_("show-touched-automation"), show_touched_automation());
 
 	node->add_child_nocopy (selection->get_state ());
 
@@ -3458,28 +3452,29 @@ Editor::set_stationary_playhead (bool yn)
 }
 
 bool
-Editor::show_touched_automation () const
+Editor::show_touched_automation() const
 {
 	if (!contents().get_mapped()) {
 		return false;
 	}
-	return _show_touched_automation;
+
+	if (!show_touched_automation_action) {
+		return false;
+	}
+
+	return show_touched_automation_action->get_active ();
 }
 
 void
 Editor::toggle_show_touched_automation ()
 {
-	RefPtr<ToggleAction> tact = ActionManager::get_toggle_action (X_("Editor"), X_("show-touched-automation"));
-	set_show_touched_automation (tact->get_active());
+	set_show_touched_automation (show_touched_automation_action->get_active());
 }
 
 void
 Editor::set_show_touched_automation (bool yn)
 {
-	if (_show_touched_automation == yn) {
-		return;
-	}
-	_show_touched_automation = yn;
+	show_touched_automation_action->set_active (yn);
 	if (!yn) {
 		RouteTimeAxisView::signal_ctrl_touched (true);
 	}
