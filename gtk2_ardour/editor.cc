@@ -2067,6 +2067,8 @@ Editor::add_bus_context_items (Menu_Helpers::MenuList& edit_items)
 void
 Editor::show_rulers_for_grid ()
 {
+	GridType gt (grid_type());
+
 	/* show appropriate rulers for this grid setting. */
 	if (grid_musical()) {
 		ruler_tempo_action->set_active(true);
@@ -2078,7 +2080,7 @@ Editor::show_rulers_for_grid ()
 			ruler_minsec_action->set_active(false);
 			ruler_samples_action->set_active(false);
 		}
-	} else if (_grid_type == GridTypeTimecode) {
+	} else if (gt == GridTypeTimecode) {
 		ruler_timecode_action->set_active(true);
 
 		if (UIConfiguration::instance().get_rulers_follow_grid()) {
@@ -2088,7 +2090,7 @@ Editor::show_rulers_for_grid ()
 			ruler_minsec_action->set_active(false);
 			ruler_samples_action->set_active(false);
 		}
-	} else if (_grid_type == GridTypeMinSec) {
+	} else if (gt == GridTypeMinSec) {
 		ruler_minsec_action->set_active(true);
 
 		if (UIConfiguration::instance().get_rulers_follow_grid()) {
@@ -2098,7 +2100,7 @@ Editor::show_rulers_for_grid ()
 			ruler_timecode_action->set_active(false);
 			ruler_samples_action->set_active(false);
 		}
-	} else if (_grid_type == GridTypeCDFrame) {
+	} else if (gt == GridTypeCDFrame) {
 		ruler_minsec_action->set_active(true);
 
 		if (UIConfiguration::instance().get_rulers_follow_grid()) {
@@ -2609,7 +2611,7 @@ Editor::snap_to_grid (timepos_t const & presnap, Temporal::RoundMode direction, 
 		ret = snap_to_bbt (presnap, direction, gpref);
 	}
 
-	switch (_grid_type) {
+	switch (grid_type()) {
 	case GridTypeTimecode:
 		ret = snap_to_timecode(presnap, direction, gpref);
 		break;
@@ -5716,7 +5718,7 @@ Editor::snap_to_internal (timepos_t& start, Temporal::RoundMode direction, SnapP
 	timepos_t best = timepos_t::max (start.time_domain()); // this records the best snap-result we've found so far
 
 	/* check Grid */
-	if ( (_grid_type != GridTypeNone) && (uic.get_snap_target () != SnapTargetOther) ) {
+	if ( (grid_type() != GridTypeNone) && (uic.get_snap_target () != SnapTargetOther) ) {
 		timepos_t pre (presnap);
 		timepos_t post (snap_to_grid (pre, direction, pref));
 		check_best_snap (presnap, post, dist, best);

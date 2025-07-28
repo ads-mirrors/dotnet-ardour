@@ -1478,7 +1478,7 @@ CueEditor::metric_get_bbt (std::vector<ArdourCanvas::Ruler::Mark>& marks, sample
 
 	using namespace Editing;
 
-	switch (_grid_type) {
+	switch (grid_type()) {
 	case GridTypeBeatDiv3:
 		bbt_divisor = 3;
 		break;

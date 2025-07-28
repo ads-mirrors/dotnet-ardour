@@ -294,7 +294,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	void cycle_snap_mode ();
 	void next_grid_choice ();
 	void prev_grid_choice ();
-	void set_grid_to (Editing::GridType);
+	void set_grid_type (Editing::GridType);
 	void set_snap_mode (Editing::SnapMode);
 
 	void set_draw_length_to (Editing::GridType);
@@ -535,7 +535,7 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	Glib::RefPtr<Gtk::RadioAction> draw_velocity_action (int);
 	Glib::RefPtr<Gtk::RadioAction> draw_channel_action (int);
 
-	Editing::GridType _grid_type;
+	std::map<Editing::GridType, Glib::RefPtr<Gtk::RadioAction> > grid_actions;
 	Editing::SnapMode _snap_mode;
 
 	Editing::GridType _draw_length;
@@ -564,7 +564,6 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	ArdourWidgets::ArdourDropdown draw_channel_selector;
 	void build_draw_midi_menus ();
 
-	void grid_type_selection_done (Editing::GridType);
 	void snap_mode_selection_done (Editing::SnapMode);
 	void snap_mode_chosen (Editing::SnapMode);
 	void grid_type_chosen (Editing::GridType);
