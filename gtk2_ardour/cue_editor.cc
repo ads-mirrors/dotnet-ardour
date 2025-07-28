@@ -1104,7 +1104,7 @@ CueEditor::maybe_set_from_rsu ()
 void
 CueEditor::set_from_rsu (RegionUISettings& rsu)
 {
-	Glib::RefPtr<Gtk::RadioAction> ract = grid_type_action (rsu.grid_type);
+	Glib::RefPtr<Gtk::RadioAction> ract = grid_actions[rsu.grid_type];
 	assert (ract);
 	ract->set_active (true);
 
