@@ -117,7 +117,6 @@ EditingContext::EditingContext (std::string const & name)
 	, pre_internal_snap_mode (SnapOff)
 	, internal_grid_type (GridTypeBeat)
 	, internal_snap_mode (SnapOff)
-	, _snap_mode (SnapOff)
 	, _draw_length (GridTypeNone)
 	, _draw_velocity (DRAW_VEL_AUTO)
 	, _draw_channel (DRAW_CHAN_AUTO)
@@ -381,9 +380,9 @@ EditingContext::register_common_actions (Bindings* common_bindings, std::string 
 	ActionManager::register_action (_common_actions, X_("GridChoice"), _("Snap & Grid"));
 
 	RadioAction::Group snap_mode_group;
-	/* deprecated */  ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-off"), _("No Grid"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapOff)));
-	/* deprecated */  ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-normal"), _("Grid"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapNormal)));  //deprecated
-	/* deprecated */  ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-magnetic"), _("Magnetic"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapMagnetic)));
+	snap_mode_actions[Editing::SnapOff] = ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-off"), _("No Grid"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapOff)));
+	snap_mode_actions[Editing::SnapNormal] =  ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-normal"), _("Grid"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapNormal)));  //deprecated
+	snap_mode_actions[Editing::SnapMagnetic] = ActionManager::register_radio_action (_common_actions, snap_mode_group, X_("snap-magnetic"), _("Magnetic"), (sigc::bind (sigc::mem_fun(*this, &EditingContext::snap_mode_chosen), Editing::SnapMagnetic)));
 
 	ActionManager::register_action (_common_actions, X_("cycle-snap-mode"), _("Toggle Snap"), sigc::mem_fun (*this, &EditingContext::cycle_snap_mode));
 	ActionManager::register_action (_common_actions, X_("next-grid-choice"), _("Next Quantize Grid Choice"), sigc::mem_fun (*this, &EditingContext::next_grid_choice));
@@ -572,16 +571,6 @@ EditingContext::midi_action (void (MidiView::*method)())
 		if (mrv) {
 			(mrv->*method)();
 		}
-	}
-}
-
-void
-EditingContext::snap_mode_selection_done (SnapMode mode)
-{
-	RefPtr<RadioAction> ract = snap_mode_action (mode);
-
-	if (ract) {
-		ract->set_active (true);
 	}
 }
 
@@ -775,43 +764,10 @@ EditingContext::draw_channel_chosen (int c)
 	}
 }
 
-RefPtr<RadioAction>
-EditingContext::snap_mode_action (SnapMode mode)
-{
-	const char* action = 0;
-	RefPtr<Action> act;
-
-	switch (mode) {
-	case Editing::SnapOff:
-		action = X_("snap-off");
-		break;
-	case Editing::SnapNormal:
-		action = X_("snap-normal");
-		break;
-	case Editing::SnapMagnetic:
-		action = X_("snap-magnetic");
-		break;
-	default:
-		fatal << string_compose (_("programming error: %1: %2"), "Editor: impossible snap mode type", (int) mode) << endmsg;
-		abort(); /*NOTREACHED*/
-	}
-
-	act = ActionManager::get_action ((_name + X_("Editing")).c_str(), action);
-
-	if (act) {
-		RefPtr<RadioAction> ract = RefPtr<RadioAction>::cast_dynamic(act);
-		return ract;
-
-	} else  {
-		error << string_compose (_("programming error: %1: %2"), "EditingContext::snap_mode_chosen could not find action to match mode.", action) << endmsg;
-		return RefPtr<RadioAction> ();
-	}
-}
-
 void
 EditingContext::cycle_snap_mode ()
 {
-	switch (_snap_mode) {
+	switch (snap_mode()) {
 	case SnapOff:
 	case SnapNormal:
 		set_snap_mode (SnapMagnetic);
@@ -834,11 +790,26 @@ EditingContext::snap_mode_chosen (SnapMode mode)
 		mode = SnapMagnetic;
 	}
 
-	RefPtr<RadioAction> ract = snap_mode_action (mode);
+	auto si = snap_mode_actions.find (mode);
+	assert (si != snap_mode_actions.end());
 
-	if (ract && ract->get_active()) {
-		set_snap_mode (mode);
+	if (!si->second->get_active()) {
+		return;
 	}
+
+	if (internal_editing()) {
+		internal_snap_mode = mode;
+	} else {
+		pre_internal_snap_mode = mode;
+	}
+
+	if (mode == SnapOff) {
+		snap_mode_button.set_active_state (Gtkmm2ext::Off);
+	} else {
+		snap_mode_button.set_active_state (Gtkmm2ext::ExplicitActive);
+	}
+
+	instant_save ();
 }
 
 GridType
@@ -911,7 +882,13 @@ EditingContext::grid_type_is_musical(GridType gt) const
 SnapMode
 EditingContext::snap_mode() const
 {
-	return _snap_mode;
+	for (auto const & [mode,action] : snap_mode_actions) {
+		if (action->get_active()) {
+			return mode;
+		}
+	}
+
+	return Editing::SnapOff;
 }
 
 void
@@ -999,23 +976,9 @@ EditingContext::set_grid_type (GridType gt)
 void
 EditingContext::set_snap_mode (SnapMode mode)
 {
-	if (internal_editing()) {
-		internal_snap_mode = mode;
-	} else {
-		pre_internal_snap_mode = mode;
-	}
-
-	_snap_mode = mode;
-
-	if (_snap_mode == SnapOff) {
-		snap_mode_button.set_active_state (Gtkmm2ext::Off);
-	} else {
-		snap_mode_button.set_active_state (Gtkmm2ext::ExplicitActive);
-	}
-
-	instant_save ();
+	Glib::RefPtr<Gtk::RadioAction> ract = snap_mode_actions[mode];
+	ract->set_active (true);
 }
-
 
 RefPtr<RadioAction>
 EditingContext::draw_velocity_action (int v)
@@ -1278,7 +1241,7 @@ EditingContext::time_domain () const
 
 	/* Probably never reached */
 
-	if (_snap_mode == SnapOff) {
+	if (snap_mode() == SnapOff) {
 		return Temporal::AudioTime;
 	}
 
@@ -1367,12 +1330,12 @@ EditingContext::snap_to_with_modifier (timepos_t& start, GdkEvent const * event,
 	}
 
 	if (ArdourKeyboard::indicates_snap (event->button.state)) {
-		if (_snap_mode == SnapOff) {
+		if (snap_mode() == SnapOff) {
 			snap_to_internal (start, direction, pref, ensure_snap);
 		}
 
 	} else {
-		if (_snap_mode != SnapOff) {
+		if (snap_mode() != SnapOff) {
 			snap_to_internal (start, direction, pref);
 		} else if (ArdourKeyboard::indicates_snap_delta (event->button.state)) {
 			/* SnapOff, but we pressed the snap_delta modifier */
@@ -1384,7 +1347,7 @@ EditingContext::snap_to_with_modifier (timepos_t& start, GdkEvent const * event,
 void
 EditingContext::snap_to (timepos_t& start, Temporal::RoundMode direction, SnapPref pref, bool ensure_snap) const
 {
-	if (!_session || (_snap_mode == SnapOff && !ensure_snap)) {
+	if (!_session || (snap_mode() == SnapOff && !ensure_snap)) {
 		return;
 	}
 
@@ -2260,16 +2223,10 @@ EditingContext::set_common_editing_state (XMLNode const & node)
 	set_grid_type (grid_type);
 
 	SnapMode sm;
-	if (node.get_property ("snap-mode", sm)) {
-		snap_mode_selection_done(sm);
-		/* set text of Dropdown. in case _snap_mode == SnapOff (default)
-		 * snap_mode_selection_done() will only mark an already active item as active
-		 * which does not trigger set_text().
-		 */
-		set_snap_mode (sm);
-	} else {
-		set_snap_mode (_snap_mode);
+	if (!node.get_property ("snap-mode", sm)) {
+		sm = SnapOff;
 	}
+	set_snap_mode (sm);
 
 	node.get_property ("internal-grid-type", internal_grid_type);
 	node.get_property ("internal-snap-mode", internal_snap_mode);
@@ -2298,7 +2255,7 @@ EditingContext::get_common_editing_state (XMLNode& node) const
 {
 	node.set_property ("zoom", samples_per_pixel);
 	node.set_property ("grid-type", grid_type());
-	node.set_property ("snap-mode", _snap_mode);
+	node.set_property ("snap-mode", snap_mode());
 	node.set_property ("internal-grid-type", internal_grid_type);
 	node.set_property ("internal-snap-mode", internal_snap_mode);
 	node.set_property ("pre-internal-grid-type", pre_internal_grid_type);

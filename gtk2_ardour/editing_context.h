@@ -528,14 +528,12 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 
 	static std::vector<std::string> grid_type_strings;
 
-	Glib::RefPtr<Gtk::RadioAction> snap_mode_action (Editing::SnapMode);
-
 	Glib::RefPtr<Gtk::RadioAction> draw_length_action (Editing::GridType);
 	Glib::RefPtr<Gtk::RadioAction> draw_velocity_action (int);
 	Glib::RefPtr<Gtk::RadioAction> draw_channel_action (int);
 
 	std::map<Editing::GridType, Glib::RefPtr<Gtk::RadioAction> > grid_actions;
-	Editing::SnapMode _snap_mode;
+	std::map<Editing::SnapMode, Glib::RefPtr<Gtk::RadioAction> > snap_mode_actions;
 
 	Editing::GridType _draw_length;
 	int _draw_velocity;
@@ -563,7 +561,6 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	ArdourWidgets::ArdourDropdown draw_channel_selector;
 	void build_draw_midi_menus ();
 
-	void snap_mode_selection_done (Editing::SnapMode);
 	void snap_mode_chosen (Editing::SnapMode);
 	void grid_type_chosen (Editing::GridType);
 
