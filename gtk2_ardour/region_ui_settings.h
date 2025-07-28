@@ -35,7 +35,7 @@ struct RegionUISettings
 	Editing::GridType grid_type;
 	double samples_per_pixel;
 	bool   follow_playhead;
-	bool   play_selection;
+	bool   play_selection;     /* XXX currently global */
 	Editing::SnapMode snap_mode;
 	Editing::ZoomFocus zoom_focus;
 	Editing::MouseMode mouse_mode;
