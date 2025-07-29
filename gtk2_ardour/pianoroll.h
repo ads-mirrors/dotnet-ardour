@@ -87,9 +87,6 @@ class Pianoroll : public CueEditor
 
 	void set_mouse_mode (Editing::MouseMode, bool force = false);
 
-	int set_state (const XMLNode&, int version);
-	XMLNode& get_state () const;
-
 	void midi_action (void (MidiView::*method)());
 
 	std::list<SelectableOwner*> selectable_owners();
@@ -251,4 +248,6 @@ class Pianoroll : public CueEditor
 
 	void show_count_in (std::string const &);
 	void hide_count_in ();
+
+	void instant_save ();
 };

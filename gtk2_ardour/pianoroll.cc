@@ -1915,42 +1915,15 @@ Pianoroll::hide_count_in ()
 	}
 }
 
-int
-Pianoroll::set_state (XMLNode const & node, int version)
+void
+Pianoroll::instant_save ()
 {
-	using namespace Editing;
+	region_ui_settings.draw_length = draw_length();
+	region_ui_settings.draw_velocity = draw_velocity();
+	region_ui_settings.channel = draw_channel();
+	region_ui_settings.note_min = bg->lowest_note ();
+	region_ui_settings.note_max = bg->highest_note();
 
-	CueEditor::set_state (node, version);
-
-	GridType draw_length;
-	if (!node.get_property ("draw-length", draw_length)) {
-		draw_length = _draw_length;
-	}
-	draw_length_chosen (draw_length);
-
-	int draw_vel;
-	if (!node.get_property ("draw-velocity", draw_vel)) {
-		draw_vel = _draw_velocity;
-	}
-	draw_velocity_chosen (draw_vel);
-
-	int draw_chan;
-	if (!node.get_property ("draw-channel", draw_chan)) {
-		draw_chan = DRAW_CHAN_AUTO;
-	}
-	draw_channel_chosen (draw_chan);
-
-	return 0;
+	CueEditor::instant_save ();
 }
 
-XMLNode&
-Pianoroll::get_state () const
-{
-	XMLNode& node (CueEditor::get_state());
-
-	node.set_property ("draw-length", _draw_length);
-	node.set_property ("draw-velocity", _draw_velocity);
-	node.set_property ("draw-channel", _draw_channel);
-
-	return node;
-}

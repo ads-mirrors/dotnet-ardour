@@ -297,9 +297,9 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 	void set_grid_type (Editing::GridType);
 	void set_snap_mode (Editing::SnapMode);
 
-	void set_draw_length_to (Editing::GridType);
-	void set_draw_velocity_to (int);
-	void set_draw_channel_to (int);
+	void set_draw_length (Editing::GridType);
+	void set_draw_velocity (int);
+	void set_draw_channel (int);
 
 	Editing::GridType  draw_length () const;
 	int                draw_velocity () const;
@@ -528,16 +528,11 @@ class EditingContext : public ARDOUR::SessionHandlePtr, public AxisViewProvider,
 
 	static std::vector<std::string> grid_type_strings;
 
-	Glib::RefPtr<Gtk::RadioAction> draw_length_action (Editing::GridType);
-	Glib::RefPtr<Gtk::RadioAction> draw_velocity_action (int);
-	Glib::RefPtr<Gtk::RadioAction> draw_channel_action (int);
-
 	std::map<Editing::GridType, Glib::RefPtr<Gtk::RadioAction> > grid_actions;
 	std::map<Editing::SnapMode, Glib::RefPtr<Gtk::RadioAction> > snap_mode_actions;
-
-	Editing::GridType _draw_length;
-	int _draw_velocity;
-	int _draw_channel;
+	std::map<Editing::GridType, Glib::RefPtr<Gtk::RadioAction> > draw_length_actions;
+	std::map<int, Glib::RefPtr<Gtk::RadioAction> > draw_velocity_actions;
+	std::map<int, Glib::RefPtr<Gtk::RadioAction> > draw_channel_actions;
 
 	void draw_channel_chosen (int);
 	void draw_velocity_chosen (int);

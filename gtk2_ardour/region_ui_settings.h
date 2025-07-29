@@ -44,7 +44,7 @@ struct RegionUISettings
 
 	/* MIDI specific */
 
-	Temporal::Beats draw_length;
+	Editing::GridType draw_length;
 	int    draw_velocity;
 	int    channel;
 	int    note_min;

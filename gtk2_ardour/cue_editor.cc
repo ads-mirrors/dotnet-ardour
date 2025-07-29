@@ -1104,21 +1104,19 @@ CueEditor::maybe_set_from_rsu ()
 void
 CueEditor::set_from_rsu (RegionUISettings& rsu)
 {
-	Glib::RefPtr<Gtk::RadioAction> ract = grid_actions[rsu.grid_type];
-	assert (ract);
-	ract->set_active (true);
-
-	Glib::RefPtr<Gtk::ToggleAction> tact = Glib::RefPtr<Gtk::ToggleAction>::cast_dynamic (ActionManager::get_action ((editor_name() + X_("Editing")).c_str(), X_("toggle-follow-playhead")));
-	assert (tact);
-	tact->set_active (rsu.follow_playhead);
+	follow_playhead_action->set_active (rsu.follow_playhead);
 
 	/* XXXX play selection */
 
+	set_grid_type (rsu.grid_type);
 	set_recording_length (rsu.recording_length);
 	set_snap_mode (rsu.snap_mode);
 	set_zoom_focus (rsu.zoom_focus);
 	reposition_and_zoom (rsu.x_origin.samples(), rsu.samples_per_pixel);
 	set_recording_length (rsu.recording_length);
+	set_draw_length (rsu.draw_length);
+	set_draw_velocity (rsu.draw_velocity);
+	set_draw_channel (rsu.channel);
 }
 
 void
